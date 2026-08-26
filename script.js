@@ -461,6 +461,18 @@ async function handleRegister(event) {
 // ========================================
 // DASHBOARD FUNCTIONS
 // ========================================
+const ISSUABLE_STATUSES = ["Available", "In Storage"];
+
+function setAvailabilityPill(pillId, available, total) {
+    const pill = document.getElementById(pillId);
+    if (!pill) return;
+    const av = Number(available || 0);
+    const tot = Number(total || 0);
+    const pct = tot > 0 ? Math.round((av / tot) * 100) : 0;
+    pill.textContent = av + ' issuable of ' + tot + ' (' + pct + '%)';
+    pill.classList.toggle('zero', av === 0);
+}
+
 async function loadDashboardData() {
     try {
         // Set dashboard date
@@ -474,7 +486,9 @@ async function loadDashboardData() {
             });
         }
 
-        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryGood, categoryLost] = await Promise.all([
+        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryGood, categoryLost,
+            availTotals, availByCat, availByDept, availByLoc, availByStatus, availByCondition
+        ] = await Promise.all([
             apiCall('/dashboard/status', 'GET'),
             apiCall('/dashboard/location', 'GET'),
             apiCall('/dashboard/department', 'GET'),
@@ -483,43 +497,91 @@ async function loadDashboardData() {
             apiCall('/dashboard/category/faulty', 'GET'),
             apiCall('/dashboard/category/good', 'GET'),
             apiCall('/dashboard/category/lost', 'GET'),
+            apiCall('/dashboard/available/total', 'GET'),
+            apiCall('/dashboard/available/category', 'GET'),
+            apiCall('/dashboard/available/department', 'GET'),
+            apiCall('/dashboard/available/location', 'GET'),
+            apiCall('/dashboard/available/status', 'GET'),
+            apiCall('/dashboard/available/condition', 'GET')
         ]);
 
-        document.getElementById('totalAssets').textContent = assetsData.length;
-        const availableCount = statusData.find(s => s._id === 'Available')?.count || 0;
-        const assignedCount = statusData.find(s => s._id === 'Assigned')?.count || 0;
-        const storageCount = statusData.find(s => s._id === 'In Storage')?.count || 0;
-        const repairCount = statusData.find(s => s._id === 'Under Repair')?.count || 0;
-        const lostCount = statusData.find(s => s._id === 'Lost')?.count || 0;
+        // Store assets for dashboard filtering
+        window.__dashboardAllAssets = assetsData;
 
-        animateCount('totalAssets', assetsData.length);
+        const totalCount = availTotals.total;
+        const availableCount = availTotals.available;
+        const assignedCount = availTotals.assigned;
+        const storageCount = availTotals.inStorage;
+        const repairCount = availTotals.underRepair;
+        const lostCount = availTotals.lost;
+        const issuableCount = availTotals.issuable;
+
+        document.getElementById('totalAssets').textContent = totalCount;
+        animateCount('totalAssets', totalCount);
         animateCount('availableAssets', availableCount);
         animateCount('assignedAssets', assignedCount);
         animateCount('storageAssets', storageCount);
         animateCount('repairAssets', repairCount);
         animateCount('lostAssets', lostCount);
 
+        // ---- Availability pills across every section ----
+        setAvailabilityPill('avail-category', issuableCount, totalCount);
+        setAvailabilityPill('avail-status', issuableCount, totalCount);
+        setAvailabilityPill('avail-department', issuableCount, totalCount);
+        setAvailabilityPill('avail-location', issuableCount, totalCount);
+        setAvailabilityPill('avail-categorygood', availByCondition['Good'] + availByCondition['New'] || 0, issuableCount);
+        setAvailabilityPill('avail-categoryfaulty', availByCondition['Faulty'] + availByCondition['Damaged'] || 0, issuableCount);
+        setAvailabilityPill('avail-categorylost', 0, issuableCount);
+        setAvailabilityPill('avail-statustable', issuableCount, totalCount);
+        setAvailabilityPill('avail-healthtable', issuableCount, totalCount);
+        setAvailabilityPill('avail-locationstable', issuableCount, totalCount);
+        setAvailabilityPill('avail-departmentstable', issuableCount, totalCount);
+        setAvailabilityPill('avail-categorytable', issuableCount, totalCount);
+
         const statusTableBody = document.getElementById('statusTableBody');
         statusTableBody.innerHTML = statusData.map(item => {
-            return '<tr><td><span class="badge ' + getStatusBadgeClass(item._id) + '">' + item._id + '</span></td><td><strong>' + item.count + '</strong></td></tr>';
+            let avail = 0;
+            if (item.status === 'Available') avail = availByStatus['Available'] || 0;
+            else if (item.status === 'In Storage') avail = availByStatus['In Storage'] || 0;
+            else if (item.status === 'Faulty') avail = 0; // Faulty condition - not issuable yet
+            return '<tr>' +
+                '<td><span class="badge ' + getStatusBadgeClass(item._id) + '">' + item._id + '</span></td>' +
+                '<td><strong>' + item.count + '</strong></td>' +
+                '<td>' + (avail > 0 ? '<strong style="color:#10b981">✓ ' + avail + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                '</tr>';
         }).join('');
 
         const locationTableBody = document.getElementById('locationTableBody');
         locationTableBody.innerHTML = locationData.slice(0, 8).map(item => {
-            return '<tr><td>' + (item._id || 'Unknown') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+            const av = availByLoc[item._id] || 0;
+            return '<tr>' +
+                '<td>' + (item._id || 'Unknown') + '</td>' +
+                '<td><strong>' + item.count + '</strong></td>' +
+                '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                '</tr>';
         }).join('');
 
         const departmentTableBody = document.getElementById('departmentTableBody');
         if (departmentTableBody) {
             departmentTableBody.innerHTML = departmentData.slice(0, 8).map(item => {
-                return '<tr><td>' + (item._id || 'Unassigned') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+                const av = availByDept[item._id] || 0;
+                return '<tr>' +
+                    '<td>' + (item._id || 'Unassigned') + '</td>' +
+                    '<td><strong>' + item.count + '</strong></td>' +
+                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
             }).join('');
         }
 
         const categoryAllTableBody = document.getElementById('categoryAllTableBody');
         if (categoryAllTableBody) {
             categoryAllTableBody.innerHTML = categoryData.map(item => {
-                return '<tr><td>' + (item._id || 'Unknown') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+                const av = availByCat[item._id] || 0;
+                return '<tr>' +
+                    '<td>' + (item._id || 'Unknown') + '</td>' +
+                    '<td><strong>' + item.count + '</strong></td>' +
+                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
             }).join('');
         }
 
@@ -535,9 +597,16 @@ async function loadDashboardData() {
         if (healthTableBody) {
             const rows = [...allCats].sort().map(cat => {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
-                return '<tr><td>' + cat + '</td><td><strong style="color:#10b981">' + h.good + '</strong></td><td><strong style="color:#f59e0b">' + h.faulty + '</strong></td><td><strong style="color:#ef4444">' + h.lost + '</strong></td></tr>';
+                const av = availByCat[cat] || 0;
+                return '<tr>' +
+                    '<td>' + cat + '</td>' +
+                    '<td><strong style="color:#10b981">' + h.good + '</strong></td>' +
+                    '<td><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
+                    '<td><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
+                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
             });
-            healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="4" class="text-center no-data">No category data</td></tr>';
+            healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>';
         }
 
         createStatusChart(statusData);
@@ -547,9 +616,69 @@ async function loadDashboardData() {
         createCategoryGoodChart(categoryGood);
         createCategoryFaultyChart(categoryFaulty);
         createCategoryLostChart(categoryLost);
+
+        // Apply filters preview if any set
+        applyDashboardFilters();
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
     }
+}
+
+function applyDashboardFilters() {
+    const all = window.__dashboardAllAssets || [];
+    const search = (document.getElementById('dashboardSearchInput')?.value || '').toString().toLowerCase().trim();
+    const statusF = document.getElementById('dashboardStatusFilter')?.value || '';
+    const categoryF = document.getElementById('dashboardCategoryFilter')?.value || '';
+    const preview = document.getElementById('dashboardFilterPreview');
+    const matchesBody = document.getElementById('dashboardMatchesBody');
+    const matchCount = document.getElementById('dashboardMatchCount');
+
+    const matches = all.filter(a => {
+        if (statusF && a.status !== statusF) return false;
+        if (categoryF && a.category !== categoryF) return false;
+        if (search) {
+            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition]
+                .filter(Boolean).join(' ').toLowerCase();
+            if (!hay.includes(search)) return false;
+        }
+        return true;
+    });
+
+    const hasAny = !!(search || statusF || categoryF);
+    if (preview) preview.style.display = hasAny ? 'block' : 'none';
+    if (!hasAny) return;
+
+    if (matchCount) matchCount.textContent = matches.length;
+    const issuable = matches.filter(m => ISSUABLE_STATUSES.includes(m.status)).length;
+    setAvailabilityPill('avail-dashboard-match', issuable, matches.length);
+
+    if (matchesBody) {
+        if (!matches.length) {
+            matchesBody.innerHTML = '<tr><td colspan="8" class="text-center no-data">No matching assets</td></tr>';
+        } else {
+            matchesBody.innerHTML = matches.slice(0, 50).map(a => {
+                return '<tr>' +
+                    '<td><strong>' + (a.assetTag || '-') + '</strong></td>' +
+                    '<td>' + (a.category || '-') + '</td>' +
+                    '<td>' + [a.brand, a.model].filter(Boolean).join(' / ') + '</td>' +
+                    '<td><span class="badge ' + getStatusBadgeClass(a.status) + '">' + (a.status || '-') + '</span></td>' +
+                    '<td>' + (a.location || '-') + '</td>' +
+                    '<td>' + (a.department || '-') + '</td>' +
+                    '<td>' + (a.assignedTo || '-') + '</td>' +
+                    '<td>' + (a.condition || '-') + '</td>' +
+                    '</tr>';
+            }).join('') + (matches.length > 50 ? '<tr><td colspan="8" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
+        }
+    }
+}
+
+function clearDashboardFilters() {
+    ['dashboardSearchInput', 'dashboardStatusFilter', 'dashboardCategoryFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    applyDashboardFilters();
 }
 
 function createStatusChart(data) {

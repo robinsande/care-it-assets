@@ -197,6 +197,70 @@
 
             <div id="dashboardMessage" class="alert" style="display: none;"></div>
 
+            <!-- Dashboard Search / Filters Row -->
+            <div class="asset-filters dashboard-filters">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="dashboardSearchInput"
+                        placeholder="🔍 Search assets by Tag, Brand, Model, Serial, Assigned To..."
+                        onkeyup="applyDashboardFilters()"
+                    >
+                </div>
+
+                <select id="dashboardStatusFilter" onchange="applyDashboardFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="Available">Available</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="In Storage">In Storage</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Lost">Lost</option>
+                    <option value="Aproved for disposal">Aproved for disposal</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+
+                <select id="dashboardCategoryFilter" onchange="applyDashboardFilters()">
+                    <option value="">All Categories</option>
+                    <option value="Laptops">Laptops</option>
+                    <option value="Mobile Phones">Mobile Phones</option>
+                    <option value="Monitors">Monitors</option>
+                    <option value="Projectors">Projectors</option>
+                    <option value="TV">TV</option>
+                    <option value="Printers">Printers</option>
+                    <option value="Copiers">Copiers</option>
+                    <option value="Network Devices">Network Devices</option>
+                    <option value="Tablets">Tablets</option>
+                </select>
+
+                <button type="button" class="btn btn-secondary small" onclick="clearDashboardFilters()">✕ Clear Filters</button>
+            </div>
+
+            <!-- Filtered Dashboard Assets Preview -->
+            <div class="stats-table dashboard-filter-preview" id="dashboardFilterPreview" style="display: none;">
+                <div class="chart-card-header">
+                    <h2>Matching Assets (<span id="dashboardMatchCount">0</span>)</h2>
+                    <span class="availability-pill" id="avail-dashboard-match"></span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset Tag</th>
+                                <th>Category</th>
+                                <th>Brand / Model</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                                <th>Department</th>
+                                <th>Assigned To</th>
+                                <th>Condition</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardMatchesBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Summary Cards Row (6) -->
             <div class="grid grid-6">
                 <div class="stat-card total">
@@ -240,7 +304,7 @@
                 </div>
 
                 <div class="stat-card lost">
-                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-icon">❌</div>
                     <div class="stat-content">
                         <h3>Lost</h3>
                         <p class="stat-value" id="lostAssets">0</p>
@@ -251,17 +315,26 @@
             <!-- Primary Charts Row (3) -->
             <div class="grid grid-3-charts">
                 <div class="chart-card">
-                    <h2>Assets by Category</h2>
+                    <div class="chart-card-header">
+                        <h2>Assets by Category</h2>
+                        <span class="availability-pill" id="avail-category"></span>
+                    </div>
                     <canvas id="categoryAllChart"></canvas>
                 </div>
 
                 <div class="chart-card">
-                    <h2>Asset Status Distribution</h2>
+                    <div class="chart-card-header">
+                        <h2>Asset Status Distribution</h2>
+                        <span class="availability-pill" id="avail-status"></span>
+                    </div>
                     <canvas id="statusChart"></canvas>
                 </div>
 
                 <div class="chart-card">
-                    <h2>Assets by Department</h2>
+                    <div class="chart-card-header">
+                        <h2>Assets by Department</h2>
+                        <span class="availability-pill" id="avail-department"></span>
+                    </div>
                     <canvas id="departmentChart"></canvas>
                 </div>
             </div>
@@ -269,17 +342,26 @@
             <!-- Category Health Charts Row (3) - Good / Faulty / Lost -->
             <div class="grid grid-3-charts">
                 <div class="chart-card">
-                    <h2>✅ Good / New Assets by Category</h2>
+                    <div class="chart-card-header">
+                        <h2>✅ Good / New Assets by Category</h2>
+                        <span class="availability-pill" id="avail-categorygood"></span>
+                    </div>
                     <canvas id="categoryGoodChart"></canvas>
                 </div>
 
                 <div class="chart-card">
-                    <h2>⚠️ Faulty / Damaged by Category</h2>
+                    <div class="chart-card-header">
+                        <h2>⚠️ Faulty / Damaged by Category</h2>
+                        <span class="availability-pill" id="avail-categoryfaulty"></span>
+                    </div>
                     <canvas id="categoryFaultyChart"></canvas>
                 </div>
 
                 <div class="chart-card">
-                    <h2>❌ Lost Assets by Category</h2>
+                    <div class="chart-card-header">
+                        <h2>❌ Lost Assets by Category</h2>
+                        <span class="availability-pill" id="avail-categorylost"></span>
+                    </div>
                     <canvas id="categoryLostChart"></canvas>
                 </div>
             </div>
@@ -287,17 +369,24 @@
             <!-- Secondary Row: Location + Tables -->
             <div class="grid grid-3-charts">
                 <div class="chart-card">
-                    <h2>Assets by Location</h2>
+                    <div class="chart-card-header">
+                        <h2>Assets by Location</h2>
+                        <span class="availability-pill" id="avail-location"></span>
+                    </div>
                     <canvas id="locationChart"></canvas>
                 </div>
 
                 <div class="stats-table">
-                    <h2>Status Breakdown</h2>
+                    <div class="chart-card-header">
+                        <h2>Status Breakdown</h2>
+                        <span class="availability-pill" id="avail-statustable"></span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>Status</th>
                                 <th>Count</th>
+                                <th>Available</th>
                             </tr>
                         </thead>
                         <tbody id="statusTableBody">
@@ -306,7 +395,10 @@
                 </div>
 
                 <div class="stats-table">
-                    <h2>Category Health Summary</h2>
+                    <div class="chart-card-header">
+                        <h2>Category Health Summary</h2>
+                        <span class="availability-pill" id="avail-healthtable"></span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
@@ -314,6 +406,7 @@
                                 <th>✅ Good</th>
                                 <th>⚠️ Faulty</th>
                                 <th>❌ Lost</th>
+                                <th>Available</th>
                             </tr>
                         </thead>
                         <tbody id="categoryHealthTableBody">
@@ -325,12 +418,16 @@
             <!-- Final Tables Row: Location, Department, Category Totals -->
             <div class="grid grid-3-charts">
                 <div class="stats-table">
-                    <h2>Locations</h2>
+                    <div class="chart-card-header">
+                        <h2>Locations</h2>
+                        <span class="availability-pill" id="avail-locationstable"></span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>Location</th>
                                 <th>Count</th>
+                                <th>Available</th>
                             </tr>
                         </thead>
                         <tbody id="locationTableBody">
@@ -339,12 +436,16 @@
                 </div>
 
                 <div class="stats-table">
-                    <h2>Departments</h2>
+                    <div class="chart-card-header">
+                        <h2>Departments</h2>
+                        <span class="availability-pill" id="avail-departmentstable"></span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>Department</th>
                                 <th>Count</th>
+                                <th>Available</th>
                             </tr>
                         </thead>
                         <tbody id="departmentTableBody">
@@ -353,12 +454,16 @@
                 </div>
 
                 <div class="stats-table">
-                    <h2>Assets by Category (Total)</h2>
+                    <div class="chart-card-header">
+                        <h2>Assets by Category (Total)</h2>
+                        <span class="availability-pill" id="avail-categorytable"></span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
                                 <th>Category</th>
                                 <th>Total</th>
+                                <th>Available</th>
                             </tr>
                         </thead>
                         <tbody id="categoryAllTableBody">
