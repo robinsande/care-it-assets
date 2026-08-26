@@ -135,8 +135,8 @@ function getStatusBadgeClass(status) {
     const s = (status || '').toString();
     if (s.startsWith('Available')) return 'badge-green';
     if (s.startsWith('Assigned') || s.includes('In Use')) return 'badge-blue';
-    if (s === 'In Storage') return 'badge-yellow';
-    if (s === 'Under Repair' || s.includes('Faulty') || s.includes('Damaged')) return 'badge-red';
+    if (s.includes('In Storage')) return 'badge-yellow';
+    if (s.includes('Under Repair') || s.includes('Can be Fixed') || s.includes('Faulty') || s.includes('Damaged')) return 'badge-red';
     if (s === 'Lost') return 'badge-red';
     if (s === 'Aproved for disposal' || s === 'Disposed') return 'badge-red';
     return 'badge-blue';
@@ -559,9 +559,9 @@ function createStatusChart(data) {
     function colorFor(label) {
         const s = (label || '').toString();
         if (s.startsWith('Available')) return '#10b981';
-        if (s === 'In Storage') return '#f59e0b';
+        if (s.includes('In Storage')) return '#f59e0b';
         if (s.startsWith('Assigned') || s.includes('In Use')) return '#3b82f6';
-        if (s === 'Under Repair') return '#8b5cf6';
+        if (s.includes('Under Repair') || s.includes('Can be Fixed')) return '#8b5cf6';
         if (s.includes('Faulty') || s.includes('Damaged')) return '#ef4444';
         if (s === 'Lost') return '#991b1b';
         return '#6b7280';
