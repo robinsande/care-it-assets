@@ -13,6 +13,7 @@ let statusChart = null;
 let locationChart = null;
 let departmentChart = null;
 let resetEmail = null; // For password reset flow
+let selectedAssetIds = [];
 
 // ========================================
 // API CALL HELPER
@@ -646,11 +647,13 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">No assets found</td></tr>';
+        updateBulkActionsBar();
         return;
     }
 
     tbody.innerHTML = assets.map(asset => {
+        const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
         let actionButtons = '<button class="btn btn-small btn-secondary" onclick="viewAssetDetails(\'' + asset._id + '\')" title="View">View</button>';
 
         if (userRole === 'admin') {
@@ -658,8 +661,111 @@ function renderAssetsTable(assets) {
             actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
 
-        return '<tr><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
+    updateBulkActionsBar();
+}
+
+function toggleSelectAll(checkbox) {
+    const visibleAssetIds = Array.from(document.querySelectorAll('.asset-checkbox')).map(cb => cb.dataset.id);
+    if (checkbox.checked) {
+        selectedAssetIds = [...new Set([...selectedAssetIds, ...visibleAssetIds])];
+    } else {
+        selectedAssetIds = selectedAssetIds.filter(id => !visibleAssetIds.includes(id));
+    }
+    document.querySelectorAll('.asset-checkbox').forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkActionsBar();
+}
+
+function toggleRowSelection(assetId, checkbox) {
+    if (checkbox.checked) {
+        if (!selectedAssetIds.includes(assetId)) {
+            selectedAssetIds.push(assetId);
+        }
+    } else {
+        selectedAssetIds = selectedAssetIds.filter(id => id !== assetId);
+    }
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.asset-checkbox');
+    const allChecked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allChecked;
+    }
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulkActionsBar');
+    const countEl = document.getElementById('selectedCount');
+    const isAdminValue = isAdmin();
+    
+    if (selectedAssetIds.length > 0) {
+        bar.style.display = 'flex';
+        countEl.textContent = selectedAssetIds.length;
+        document.getElementById('bulkEditBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
+        document.getElementById('bulkDeleteBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function clearSelection() {
+    selectedAssetIds = [];
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    document.querySelectorAll('.asset-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    updateBulkActionsBar();
+}
+
+async function bulkDeleteSelected() {
+    if (!isAdmin()) {
+        showMessage('assetMessage', 'Only admins can delete assets', 'error');
+        return;
+    }
+    if (selectedAssetIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to DELETE ${selectedAssetIds.length} selected asset(s)?`)) return;
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const assetId of selectedAssetIds) {
+        try {
+            await apiCall('/assets/' + assetId, 'DELETE');
+            successCount++;
+        } catch (err) {
+            errorCount++;
+        }
+    }
+    
+    let msg = `Bulk delete completed: ${successCount} deleted`;
+    if (errorCount > 0) msg += `, ${errorCount} failed`;
+    showMessage('assetMessage', msg, errorCount > 0 ? 'error' : 'success');
+    
+    clearSelection();
+    loadAssets();
+}
+
+function bulkEditSelected() {
+    if (!isAdmin()) {
+        showMessage('assetMessage', 'Only admins can edit assets', 'error');
+        return;
+    }
+    if (selectedAssetIds.length === 0) return;
+    
+    if (selectedAssetIds.length === 1) {
+        editAsset(selectedAssetIds[0]);
+        return;
+    }
+    
+    showMessage('assetMessage', 'Bulk edit (multiple assets): Currently edit is available for one asset at a time. Delete works for multiple.', 'info');
 }
 
 function filterAssets() {
@@ -853,7 +959,7 @@ function showAssignForm(assetId) {
     let formHTML = '<form onsubmit="submitAssignForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
-    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option></select></div>';
+    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option></select></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
 }

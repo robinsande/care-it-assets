@@ -326,6 +326,18 @@
                 </div>
             </div>
 
+            <!-- Bulk Actions Bar -->
+            <div id="bulkActionsBar" class="bulk-actions-bar" style="display: none;">
+                <div class="bulk-actions-info">
+                    <strong><span id="selectedCount">0</span> asset(s) selected</strong>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary btn-small" onclick="clearSelection()">Clear Selection</button>
+                    <button class="btn btn-primary btn-small" onclick="bulkEditSelected()" id="bulkEditBtn">Edit Selected</button>
+                    <button class="btn btn-danger btn-small" onclick="bulkDeleteSelected()" id="bulkDeleteBtn">Delete Selected</button>
+                </div>
+            </div>
+
             <div id="assetMessage" class="alert" style="display: none;"></div>
 
             <!-- Filters -->
@@ -360,6 +372,7 @@
                     <option value="Printers">Printers</option>
                     <option value="Copiers">Copiers</option>
                     <option value="Network Devices">Network Devices</option>
+                    <option value="Tablets">Tablets</option>
                 </select>
             </div>
 
@@ -368,6 +381,9 @@
                 <table>
                     <thead>
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
+                            </th>
                             <th>Asset Tag</th>
                             <th>Category</th>
                             <th>Serial Number</th>
@@ -381,7 +397,7 @@
                     </thead>
                     <tbody id="assetsTableBody">
                         <tr>
-                            <td colspan="9" class="text-center">Loading...</td>
+                            <td colspan="10" class="text-center">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -416,6 +432,7 @@
                             <option value="Printers">Printers</option>
                             <option value="Copiers">Copiers</option>
                             <option value="Network Devices">Network Devices</option>
+                            <option value="Tablets">Tablets</option>
                         </select>
                     </div>
 
@@ -484,6 +501,7 @@
                             <option value="Administration & Logistics">Administration & Logistics</option>
                             <option value="Procurement">Procurement</option>
                             <option value="IT">IT</option>
+                            <option value="Communications">Communications</option>
                             <option value="Programs">Programs</option>
                             <option value="CASCADE">CASCADE</option>
                             <option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option>
