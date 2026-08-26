@@ -132,13 +132,14 @@ function formatCurrency(amount) {
 }
 
 function getStatusBadgeClass(status) {
-    const s = (status || '').toString();
-    if (s.startsWith('Available')) return 'badge-green';
-    if (s.startsWith('Assigned') || s.includes('In Use')) return 'badge-blue';
-    if (s.includes('In Storage')) return 'badge-yellow';
-    if (s.includes('Under Repair') || s.includes('Can be Fixed') || s.includes('Faulty') || s.includes('Damaged')) return 'badge-red';
-    if (s === 'Lost') return 'badge-red';
-    if (s === 'Aproved for disposal' || s === 'Disposed') return 'badge-red';
+    const s = (status || '').toString().toLowerCase().trim();
+    if (s.startsWith('available')) return 'badge-green';
+    if (s.startsWith('assigned') || s.includes('in use')) return 'badge-blue';
+    if (s.includes('in storage') || s.includes('in stock') || s === 'stored' || s === 'storage') return 'badge-yellow';
+    if (s.includes('under repair') || s.includes('repairing') || s.includes('in repair') || s.includes('can be fixed') || s.includes('faulty') || s.includes('damaged')) return 'badge-purple';
+    if (s === 'lost') return 'badge-darkred';
+    if (s.includes('approved') || s.includes('disposal')) return 'badge-orange';
+    if (s.includes('disposed') || s === 'dispose') return 'badge-gray';
     return 'badge-blue';
 }
 
@@ -508,15 +509,21 @@ async function loadDashboardData() {
         window.__dashboardAllAssets = assetsData;
 
         function statCounts(arr) {
-            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, issuable: 0 };
+            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, issuable: 0, disposed: 0, approved: 0, unknown: 0 };
+            const unkCounts = {};
             arr.forEach(a => {
-                const s = (a.status || '').toString().trim().toLowerCase();
+                const sraw = (a.status || '').toString().trim();
+                const s = sraw.toLowerCase();
                 if (s === 'available') { c.available++; c.issuable++; }
                 else if (s === 'assigned') c.assigned++;
-                else if (s === 'in storage') { c.inStorage++; c.issuable++; }
-                else if (s === 'under repair') c.underRepair++;
+                else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') { c.inStorage++; c.issuable++; }
+                else if (s === 'under repair' || s === 'repairing' || s === 'in repair') c.underRepair++;
                 else if (s === 'lost') c.lost++;
+                else if (s.includes('disposed') || s === 'dispose') c.disposed++;
+                else if (s.includes('disposal') || s.includes('approve') && s.includes('disposal')) c.approved++;
+                else { c.unknown++; unkCounts[sraw || '(empty string)'] = (unkCounts[sraw || '(empty string)'] || 0) + 1; }
             });
+            c.__unknownBreakdown = Object.entries(unkCounts).sort((a, b) => b[1] - a[1]);
             return c;
         }
         const counts = statCounts(assetsData);
@@ -527,6 +534,37 @@ async function loadDashboardData() {
         const repairCount = counts.underRepair;
         const lostCount = counts.lost;
         const issuableCount = counts.issuable;
+
+        // ---- Extra stats cards for Disposed / Approved For Disposal if present ----
+        const disposedCount = counts.disposed || 0;
+        const approvedCount = counts.approved || 0;
+        const unclassifiedCount = counts.unknown || 0;
+        (function syncExtraStatCards() {
+            const disp = document.getElementById('disposedAssets');
+            if (disp && disposedCount > 0) {
+                const card = disp.closest('.stat-card');
+                if (card) {
+                    card.style.display = '';
+                    disp.textContent = disposedCount;
+                    animateCount('disposedAssets', disposedCount);
+                }
+            } else if (disp) {
+                const card = disp.closest('.stat-card');
+                if (card) card.style.display = 'none';
+            }
+            const appr = document.getElementById('approvedAssets');
+            if (appr && approvedCount > 0) {
+                const card = appr.closest('.stat-card');
+                if (card) {
+                    card.style.display = '';
+                    appr.textContent = approvedCount;
+                    animateCount('approvedAssets', approvedCount);
+                }
+            } else if (appr) {
+                const card = appr.closest('.stat-card');
+                if (card) card.style.display = 'none';
+            }
+        })();
 
         const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
         setStat('totalAssets', totalCount);
@@ -585,11 +623,18 @@ async function loadDashboardData() {
         setAvailabilityPill('avail-departmentstable', issuableCount, totalCount);
         setAvailabilityPill('avail-categorytable', issuableCount, totalCount);
 
-        const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0 };
+        const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0, disposed: 0, approved: 0 };
         assetsData.forEach(a => {
-            const s = normStatus(a.status);
-            if (statusCounts[s] !== undefined) statusCounts[s]++;
-            if (isFaulty(a) && s !== 'under repair') statusCounts.faulty++;
+            const sraw = (a.status || '').toString().trim();
+            const s = sraw.toLowerCase();
+            if (s === 'available') statusCounts.available++;
+            else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') statusCounts['in storage']++;
+            else if (s === 'assigned') statusCounts.assigned++;
+            else if (s === 'under repair' || s === 'repairing' || s === 'in repair') statusCounts['under repair']++;
+            else if (s === 'lost') statusCounts.lost++;
+            else if (s.includes('disposed') || s === 'dispose') statusCounts.disposed++;
+            else if (s.includes('disposal') || s.includes('approve') && s.includes('disposal')) statusCounts.approved++;
+            if (isFaulty(a) && s !== 'under repair' && !(s.includes('disposed') || s === 'dispose') && !(s.includes('disposal'))) statusCounts.faulty++;
         });
         const statusRows = [
             { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
@@ -598,6 +643,8 @@ async function loadDashboardData() {
             { label: 'Faulty (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
             { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
         ];
+        if (statusCounts.disposed > 0) statusRows.push({ label: 'Disposed', key: 'disposed', badgeLabel: 'Disposed' });
+        if (statusCounts.approved > 0) statusRows.push({ label: 'Approved for Disposal', key: 'approved', badgeLabel: 'Approved for Disposal' });
         const statusTableBody = document.getElementById('statusTableBody');
         statusTableBody.innerHTML = statusRows.map(r => {
             const cnt = statusCounts[r.key] || 0;
@@ -753,6 +800,25 @@ async function loadDashboardData() {
                 target.onclick = () => drillDownToAssets(payload);
             }
         });
+        // Lifecycle-end stat cards: Disposed / Approved For Disposal
+        const dispStatEl = document.getElementById('disposedAssets');
+        if (dispStatEl) {
+            const dispCard = dispStatEl.closest('.stat-card');
+            if (dispCard && disposedCount > 0) {
+                dispCard.style.cursor = 'pointer';
+                dispCard.title = 'View disposed assets';
+                dispCard.onclick = () => drillDownToAssets({ status: 'Disposed' });
+            }
+        }
+        const apprStatEl = document.getElementById('approvedAssets');
+        if (apprStatEl) {
+            const apprCard = apprStatEl.closest('.stat-card');
+            if (apprCard && approvedCount > 0) {
+                apprCard.style.cursor = 'pointer';
+                apprCard.title = 'View approved for disposal assets';
+                apprCard.onclick = () => drillDownToAssets({ status: 'Approved for Disposal' });
+            }
+        }
 
         // ---- Dashboard Reconciliation / Duplicate Detection Audit ----
         (function auditDashboard() {
@@ -777,8 +843,17 @@ async function loadDashboardData() {
             if (dupSers.length > 0) warnings.push('🔢 ' + dupSers.length + ' duplicate Serial Numbers found');
 
             // 3) Stat cards sum === Total Assets ?
-            const statsSum = availableCount + assignedCount + storageCount + repairCount + lostCount;
-            if (statsSum !== N) warnings.push('🧮 Stat cards (' + statsSum + ') + unclassified (' + (N - statsSum) + ') ≠ Total (' + N + '). Check status values in the DB — unexpected status strings not being bucketed.');
+            const statsSum = availableCount + assignedCount + storageCount + repairCount + lostCount + disposedCount + approvedCount;
+            if (unclassifiedCount > 0) {
+                const details = counts.__unknownBreakdown && counts.__unknownBreakdown.length
+                    ? ' — unrecognized values: ' + counts.__unknownBreakdown.slice(0, 10).map(([k, v]) => '"' + k + '"×' + v).join(', ') + (counts.__unknownBreakdown.length > 10 ? ' …' : '')
+                    : '';
+                warnings.push('🧮 Stat cards miss ' + unclassifiedCount + ' status row' + (unclassifiedCount === 1 ? '' : 's') + details);
+            }
+            if (statsSum + unclassifiedCount !== N) warnings.push('🧮 All known buckets (' + (statsSum + unclassifiedCount) + ') ≠ Total (' + N + ') — accounting mismatch');
+            if (disposedCount || approvedCount) {
+                warnings.splice(0, 0, '💡 Recognized lifecycle-end statuses: Disposed×' + disposedCount + (approvedCount ? '   Approved For Disposal×' + approvedCount : ''));
+            }
 
             // 4) Category All rows sum === Total Assets ?
             const catAllSum = localCategoryData.reduce((s, d) => s + d.count, 0);
@@ -808,9 +883,9 @@ async function loadDashboardData() {
             if (hSum !== N) warnings.push('🩺 Health summary total (' + hSum + ') ≠ Assets total (' + N + ')');
 
             if (warnings.length) {
-                showMessage('dashboardMessage', 'Dashboard audit → ' + warnings.join('   |   '), 'error', 12000);
+                try { console.log('[CareIT Dashboard Audit] Warnings (not shown to user):\n  ' + warnings.join('\n  ')); } catch (e) {}
             } else {
-                showMessage('dashboardMessage', '✅ Dashboard audit passed: ' + N + ' assets, no duplicates, all sections reconcile cleanly.', 'success', 4000);
+                try { console.log('[CareIT Dashboard Audit] Passed: ' + N + ' assets, no duplicates, all sections reconcile cleanly.'); } catch (e) {}
             }
         })();
 
