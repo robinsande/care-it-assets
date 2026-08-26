@@ -442,11 +442,15 @@ async function loadDashboardData() {
             });
         }
 
-        const [statusData, locationData, departmentData, assetsData] = await Promise.all([
+        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryNew, categoryLost] = await Promise.all([
             apiCall('/dashboard/status', 'GET'),
             apiCall('/dashboard/location', 'GET'),
             apiCall('/dashboard/department', 'GET'),
             apiCall('/assets', 'GET'),
+            apiCall('/dashboard/category', 'GET'),
+            apiCall('/dashboard/category/faulty', 'GET'),
+            apiCall('/dashboard/category/new', 'GET'),
+            apiCall('/dashboard/category/lost', 'GET'),
         ]);
 
         document.getElementById('totalAssets').textContent = assetsData.length;
@@ -479,9 +483,37 @@ async function loadDashboardData() {
             }).join('');
         }
 
+        const categoryAllTableBody = document.getElementById('categoryAllTableBody');
+        if (categoryAllTableBody) {
+            categoryAllTableBody.innerHTML = categoryData.map(item => {
+                return '<tr><td>' + (item._id || 'Unknown') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+            }).join('');
+        }
+
+        // Health summary table: merge new/faulty/lost by category
+        const healthMap = {};
+        const allCats = new Set();
+        categoryNew.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].new = d.count; });
+        categoryFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
+        categoryLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
+        categoryData.forEach(d => allCats.add(d._id));
+
+        const healthTableBody = document.getElementById('categoryHealthTableBody');
+        if (healthTableBody) {
+            const rows = [...allCats].sort().map(cat => {
+                const h = healthMap[cat] || { new: 0, faulty: 0, lost: 0 };
+                return '<tr><td>' + cat + '</td><td><strong style="color:#10b981">' + h.new + '</strong></td><td><strong style="color:#f59e0b">' + h.faulty + '</strong></td><td><strong style="color:#ef4444">' + h.lost + '</strong></td></tr>';
+            });
+            healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="4" class="text-center no-data">No category data</td></tr>';
+        }
+
         createStatusChart(statusData);
         createLocationChart(locationData);
         createDepartmentChart(departmentData);
+        createCategoryAllChart(categoryData);
+        createCategoryNewChart(categoryNew);
+        createCategoryFaultyChart(categoryFaulty);
+        createCategoryLostChart(categoryLost);
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
     }
@@ -626,6 +658,135 @@ function createDepartmentChart(data) {
                     display: false,
                 }
             }
+        }
+    });
+}
+
+let categoryAllChart = null;
+function createCategoryAllChart(data) {
+    const ctx = document.getElementById('categoryAllChart');
+    if (!ctx) return;
+    const colors = ['#6366f1', '#FF5C00', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#14b8a6', '#84cc16'];
+    if (categoryAllChart) categoryAllChart.destroy();
+    categoryAllChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                data: data.map(d => d.count),
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: '#fff',
+                borderWidth: 2,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: { size: 12, weight: '500', family: 'Times New Roman' }
+                    }
+                }
+            }
+        }
+    });
+}
+
+let categoryNewChart = null;
+function createCategoryNewChart(data) {
+    const ctx = document.getElementById('categoryNewChart');
+    if (!ctx) return;
+    if (categoryNewChart) categoryNewChart.destroy();
+    categoryNewChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'New Assets',
+                data: data.map(d => d.count),
+                backgroundColor: '#10b981',
+                borderColor: '#059669',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+let categoryFaultyChart = null;
+function createCategoryFaultyChart(data) {
+    const ctx = document.getElementById('categoryFaultyChart');
+    if (!ctx) return;
+    if (categoryFaultyChart) categoryFaultyChart.destroy();
+    categoryFaultyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'Faulty / Damaged',
+                data: data.map(d => d.count),
+                backgroundColor: '#f59e0b',
+                borderColor: '#d97706',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+let categoryLostChart = null;
+function createCategoryLostChart(data) {
+    const ctx = document.getElementById('categoryLostChart');
+    if (!ctx) return;
+    if (categoryLostChart) categoryLostChart.destroy();
+    categoryLostChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'Lost Assets',
+                data: data.map(d => d.count),
+                backgroundColor: '#ef4444',
+                borderColor: '#dc2626',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
         }
     });
 }
