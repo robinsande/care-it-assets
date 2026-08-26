@@ -15,6 +15,23 @@ let departmentChart = null;
 let resetEmail = null; // For password reset flow
 let selectedAssetIds = [];
 
+function animateCount(elementId, target, duration = 900) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const start = 0;
+    const startTime = performance.now();
+    function step(now) {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const current = Math.floor(start + (target - start) * eased);
+        el.textContent = current;
+        if (t < 1) requestAnimationFrame(step);
+        else el.textContent = target;
+    }
+    requestAnimationFrame(step);
+}
+
 // ========================================
 // API CALL HELPER
 // ========================================
@@ -175,7 +192,7 @@ function downloadFile(blob, filename) {
 // ========================================
 // PAGE NAVIGATION
 // ========================================
-function switchPage(pageId) {
+function switchPage(pageId, options = {}) {
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
     });
@@ -183,23 +200,40 @@ function switchPage(pageId) {
     const page = document.getElementById(pageId);
     if (page) {
         page.style.display = 'block';
+    }
 
-        if (pageId === 'dashboardPage') {
-            renderHeader('header');
-            loadDashboardData();
-        } else if (pageId === 'assetsPage') {
-            renderHeader('headerAssets');
-            renderHeaderActions();
-            loadAssets();
-        }
+    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
+        try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
+    }
+
+    if (pageId === 'dashboardPage') {
+        renderHeader('header');
+        loadDashboardData();
+    } else if (pageId === 'assetsPage') {
+        renderHeader('headerAssets');
+        renderHeaderActions();
+        loadAssets();
+    } else if (pageId === 'usersPage') {
+        renderHeader('headerUsers');
+        loadUsers();
+    } else if (pageId === 'reportsPage') {
+        renderHeader('headerReports');
+        loadReports();
     }
 }
 
 function initializeApp() {
     if (isAuthenticated()) {
-        switchPage('dashboardPage');
+        let savedPage = null;
+        try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
+        const validPages = ['dashboardPage', 'assetsPage', 'usersPage', 'reportsPage'];
+        if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
+            switchPage(savedPage);
+        } else {
+            switchPage('dashboardPage');
+        }
     } else {
-        switchPage('userLoginPage');
+        switchPage('userLoginPage', { skipSave: true });
     }
 }
 
@@ -460,11 +494,12 @@ async function loadDashboardData() {
         const repairCount = statusData.find(s => s._id === 'Under Repair')?.count || 0;
         const lostCount = statusData.find(s => s._id === 'Lost')?.count || 0;
 
-        document.getElementById('availableAssets').textContent = availableCount;
-        document.getElementById('assignedAssets').textContent = assignedCount;
-        document.getElementById('storageAssets').textContent = storageCount;
-        document.getElementById('repairAssets').textContent = repairCount;
-        document.getElementById('lostAssets').textContent = lostCount;
+        animateCount('totalAssets', assetsData.length);
+        animateCount('availableAssets', availableCount);
+        animateCount('assignedAssets', assignedCount);
+        animateCount('storageAssets', storageCount);
+        animateCount('repairAssets', repairCount);
+        animateCount('lostAssets', lostCount);
 
         const statusTableBody = document.getElementById('statusTableBody');
         statusTableBody.innerHTML = statusData.map(item => {
