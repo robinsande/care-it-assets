@@ -593,7 +593,7 @@ async function loadDashboardData() {
         });
         const statusRows = [
             { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
-            { label: 'In Storage (Can be Issued to Staff)', key: 'in storage', badgeLabel: 'In Storage' },
+            { label: 'In Storage (Good working condition — Can be Issued to Staff)', key: 'in storage', badgeLabel: 'In Storage' },
             { label: 'Assigned (Assigned to Staff)', key: 'assigned', badgeLabel: 'Assigned' },
             { label: 'Faulty (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
             { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
