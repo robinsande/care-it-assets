@@ -132,16 +132,14 @@ function formatCurrency(amount) {
 }
 
 function getStatusBadgeClass(status) {
-    const map = {
-        'Available': 'badge-green',
-        'Assigned': 'badge-blue',
-        'In Storage': 'badge-yellow',
-        'Under Repair': 'badge-red',
-        'Lost': 'badge-red',
-        'Aproved for disposal': 'badge-red',
-        'Disposed': 'badge-red',
-    };
-    return map[status] || 'badge-blue';
+    const s = (status || '').toString();
+    if (s.startsWith('Available')) return 'badge-green';
+    if (s.startsWith('Assigned') || s.includes('In Use')) return 'badge-blue';
+    if (s === 'In Storage') return 'badge-yellow';
+    if (s === 'Under Repair' || s.includes('Faulty') || s.includes('Damaged')) return 'badge-red';
+    if (s === 'Lost') return 'badge-red';
+    if (s === 'Aproved for disposal' || s === 'Disposed') return 'badge-red';
+    return 'badge-blue';
 }
 
 function formatDate(dateString) {
@@ -558,7 +556,16 @@ function createStatusChart(data) {
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
 
-    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
+    function colorFor(label) {
+        const s = (label || '').toString();
+        if (s.startsWith('Available')) return '#10b981';
+        if (s === 'In Storage') return '#f59e0b';
+        if (s.startsWith('Assigned') || s.includes('In Use')) return '#3b82f6';
+        if (s === 'Under Repair') return '#8b5cf6';
+        if (s.includes('Faulty') || s.includes('Damaged')) return '#ef4444';
+        if (s === 'Lost') return '#991b1b';
+        return '#6b7280';
+    }
 
     if (statusChart) {
         statusChart.destroy();
@@ -570,7 +577,7 @@ function createStatusChart(data) {
             labels: data.map(d => d._id || 'Unknown'),
             datasets: [{
                 data: data.map(d => d.count),
-                backgroundColor: colors.slice(0, data.length),
+                backgroundColor: data.map(d => colorFor(d._id)),
                 borderColor: '#fff',
                 borderWidth: 3,
                 hoverOffset: 8,
