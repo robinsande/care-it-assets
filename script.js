@@ -595,7 +595,6 @@ async function loadDashboardData() {
             { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
             { label: 'In Storage (Can be Issued to Staff)', key: 'in storage', badgeLabel: 'In Storage' },
             { label: 'Assigned (Assigned to Staff)', key: 'assigned', badgeLabel: 'Assigned' },
-            { label: 'Under Repair (Faulty - Can be Fixed)', key: 'under repair', badgeLabel: 'Under Repair' },
             { label: 'Faulty (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
             { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
         ];
