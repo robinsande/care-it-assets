@@ -442,14 +442,14 @@ async function loadDashboardData() {
             });
         }
 
-        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryNew, categoryLost] = await Promise.all([
+        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryGood, categoryLost] = await Promise.all([
             apiCall('/dashboard/status', 'GET'),
             apiCall('/dashboard/location', 'GET'),
             apiCall('/dashboard/department', 'GET'),
             apiCall('/assets', 'GET'),
             apiCall('/dashboard/category', 'GET'),
             apiCall('/dashboard/category/faulty', 'GET'),
-            apiCall('/dashboard/category/new', 'GET'),
+            apiCall('/dashboard/category/good', 'GET'),
             apiCall('/dashboard/category/lost', 'GET'),
         ]);
 
@@ -490,19 +490,19 @@ async function loadDashboardData() {
             }).join('');
         }
 
-        // Health summary table: merge new/faulty/lost by category
+        // Health summary table: merge good/faulty/lost by category
         const healthMap = {};
         const allCats = new Set();
-        categoryNew.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].new = d.count; });
-        categoryFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
-        categoryLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { new: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
+        categoryGood.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].good = d.count; });
+        categoryFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
+        categoryLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
         categoryData.forEach(d => allCats.add(d._id));
 
         const healthTableBody = document.getElementById('categoryHealthTableBody');
         if (healthTableBody) {
             const rows = [...allCats].sort().map(cat => {
-                const h = healthMap[cat] || { new: 0, faulty: 0, lost: 0 };
-                return '<tr><td>' + cat + '</td><td><strong style="color:#10b981">' + h.new + '</strong></td><td><strong style="color:#f59e0b">' + h.faulty + '</strong></td><td><strong style="color:#ef4444">' + h.lost + '</strong></td></tr>';
+                const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
+                return '<tr><td>' + cat + '</td><td><strong style="color:#10b981">' + h.good + '</strong></td><td><strong style="color:#f59e0b">' + h.faulty + '</strong></td><td><strong style="color:#ef4444">' + h.lost + '</strong></td></tr>';
             });
             healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="4" class="text-center no-data">No category data</td></tr>';
         }
@@ -511,7 +511,7 @@ async function loadDashboardData() {
         createLocationChart(locationData);
         createDepartmentChart(departmentData);
         createCategoryAllChart(categoryData);
-        createCategoryNewChart(categoryNew);
+        createCategoryGoodChart(categoryGood);
         createCategoryFaultyChart(categoryFaulty);
         createCategoryLostChart(categoryLost);
     } catch (error) {
@@ -698,17 +698,17 @@ function createCategoryAllChart(data) {
     });
 }
 
-let categoryNewChart = null;
-function createCategoryNewChart(data) {
-    const ctx = document.getElementById('categoryNewChart');
+let categoryGoodChart = null;
+function createCategoryGoodChart(data) {
+    const ctx = document.getElementById('categoryGoodChart');
     if (!ctx) return;
-    if (categoryNewChart) categoryNewChart.destroy();
-    categoryNewChart = new Chart(ctx, {
+    if (categoryGoodChart) categoryGoodChart.destroy();
+    categoryGoodChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.map(d => d._id || 'Unknown'),
             datasets: [{
-                label: 'New Assets',
+                label: 'Good / New Assets',
                 data: data.map(d => d.count),
                 backgroundColor: '#10b981',
                 borderColor: '#059669',

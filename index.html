@@ -197,7 +197,7 @@
 
             <div id="dashboardMessage" class="alert" style="display: none;"></div>
 
-            <!-- Main Stats Cards -->
+            <!-- Summary Cards Row (6) -->
             <div class="grid grid-6">
                 <div class="stat-card total">
                     <div class="stat-icon">📦</div>
@@ -248,16 +248,16 @@
                 </div>
             </div>
 
-            <!-- Charts Row -->
+            <!-- Primary Charts Row (3) -->
             <div class="grid grid-3-charts">
                 <div class="chart-card">
-                    <h2>Asset Status Distribution</h2>
-                    <canvas id="statusChart"></canvas>
+                    <h2>Assets by Category</h2>
+                    <canvas id="categoryAllChart"></canvas>
                 </div>
 
                 <div class="chart-card">
-                    <h2>Assets by Location</h2>
-                    <canvas id="locationChart"></canvas>
+                    <h2>Asset Status Distribution</h2>
+                    <canvas id="statusChart"></canvas>
                 </div>
 
                 <div class="chart-card">
@@ -266,31 +266,31 @@
                 </div>
             </div>
 
-            <!-- Category Charts Row -->
-            <div class="grid grid-2" style="margin-top: 10px;">
+            <!-- Category Health Charts Row (3) - Good / Faulty / Lost -->
+            <div class="grid grid-3-charts">
                 <div class="chart-card">
-                    <h2>Assets Distribution by Category</h2>
-                    <canvas id="categoryAllChart"></canvas>
+                    <h2>✅ Good / New Assets by Category</h2>
+                    <canvas id="categoryGoodChart"></canvas>
                 </div>
-                <div class="chart-card">
-                    <h2>New Assets by Category (Condition = New)</h2>
-                    <canvas id="categoryNewChart"></canvas>
-                </div>
-            </div>
 
-            <div class="grid grid-2">
                 <div class="chart-card">
-                    <h2>Faulty / Damaged Assets by Category</h2>
+                    <h2>⚠️ Faulty / Damaged by Category</h2>
                     <canvas id="categoryFaultyChart"></canvas>
                 </div>
+
                 <div class="chart-card">
-                    <h2>Lost Assets by Category</h2>
+                    <h2>❌ Lost Assets by Category</h2>
                     <canvas id="categoryLostChart"></canvas>
                 </div>
             </div>
 
-            <!-- Summary Tables -->
+            <!-- Secondary Row: Location + Tables -->
             <div class="grid grid-3-charts">
+                <div class="chart-card">
+                    <h2>Assets by Location</h2>
+                    <canvas id="locationChart"></canvas>
+                </div>
+
                 <div class="stats-table">
                     <h2>Status Breakdown</h2>
                     <table>
@@ -305,6 +305,25 @@
                     </table>
                 </div>
 
+                <div class="stats-table">
+                    <h2>Category Health Summary</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>✅ Good</th>
+                                <th>⚠️ Faulty</th>
+                                <th>❌ Lost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categoryHealthTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Final Tables Row: Location, Department, Category Totals -->
+            <div class="grid grid-3-charts">
                 <div class="stats-table">
                     <h2>Top Locations</h2>
                     <table>
@@ -332,12 +351,9 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            <!-- Category Summary Tables -->
-            <div class="grid grid-2">
                 <div class="stats-table">
-                    <h2>Assets by Category (All)</h2>
+                    <h2>Assets by Category (Total)</h2>
                     <table>
                         <thead>
                             <tr>
@@ -346,22 +362,6 @@
                             </tr>
                         </thead>
                         <tbody id="categoryAllTableBody">
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="stats-table">
-                    <h2>Category Health Summary</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th>🆕 New</th>
-                                <th>⚠️ Faulty</th>
-                                <th>❌ Lost</th>
-                            </tr>
-                        </thead>
-                        <tbody id="categoryHealthTableBody">
                         </tbody>
                     </table>
                 </div>
