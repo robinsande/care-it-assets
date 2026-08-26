@@ -1029,21 +1029,96 @@ tbody tr:hover {
     box-sizing: border-box;
 }
 
-#dashboardPage + * { /* no-op placeholder for readability */ }
+/* --- Dashboard glassy filters (override default .filters white card) --- */
+#dashboardPage .filters {
+    background: linear-gradient(135deg, rgba(255,255,255,0.72) 0%, rgba(238,242,255,0.58) 50%, rgba(254,249,195,0.58) 100%);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    box-shadow: 0 12px 32px rgba(79, 70, 229, 0.08), 0 1px 0 rgba(255,255,255, 0.95) inset;
+    border-radius: 18px;
+    gap: 16px;
+    margin-bottom: 28px;
+}
+#dashboardPage .filters .search-box {
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(148,163,184,0.22);
+    box-shadow: 0 2px 8px rgba(15,23,42,0.04) inset;
+}
+#dashboardPage .filters select,
+#dashboardPage .filters .btn-small {
+    height: 44px;
+}
 
+/* --- Grid hard-locks on dashboard to fill wide screens --- */
+@media (min-width: 1100px) {
+    #dashboardPage .grid-3-charts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
 @media (min-width: 1400px) {
     #dashboardPage > .container {
         padding: 18px 36px 48px;
     }
     #dashboardPage .grid-6 {
         grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 22px;
     }
+    #dashboardPage .grid {
+        gap: 22px;
+        margin-bottom: 24px;
+    }
+    #dashboardPage .stat-card {
+        padding: 24px 24px;
+        min-height: 120px;
+    }
+    #dashboardPage .stat-icon {
+        width: 58px; height: 58px; font-size: 1.6rem;
+        flex: 0 0 58px;
+    }
+    #dashboardPage .stat-content h3 {
+        font-size: 0.84rem;
+        letter-spacing: 1px;
+    }
+    #dashboardPage .stat-value {
+        font-size: clamp(2.2rem, 3vw, 3.4rem);
+    }
+    #dashboardPage .chart-card,
+    #dashboardPage .stats-table {
+        padding: 30px 30px 32px;
+    }
+}
+
+@media (min-width: 1700px) {
+    #dashboardPage > .container { padding: 20px 48px 56px; }
+    #dashboardPage .stat-value { font-size: clamp(2.6rem, 2.5vw, 3.9rem); }
+    #dashboardPage .dashboard-header { padding: 34px 40px; }
+    #dashboardPage .filters { padding: 24px; }
 }
 
 @media (max-width: 900px) {
     #dashboardPage > .container {
         padding: 12px 14px 32px;
     }
+}
+
+/* --- Chart canvas aspect-control (don't stretch too tall on wide screens) --- */
+#dashboardPage .chart-card canvas {
+    max-height: 320px;
+    width: 100% !important;
+}
+@media (min-width: 1400px) {
+    #dashboardPage .chart-card canvas { max-height: 360px; }
+}
+
+/* --- Dashboard filter preview table polish --- */
+#dashboardPage .dashboard-filter-preview {
+    margin-bottom: 28px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(254,249,195,0.35) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.22);
+}
+#dashboardPage .dashboard-filter-preview table tbody tr:hover {
+    background: rgba(99,102,241,0.05);
 }
 
 /* ========================================
