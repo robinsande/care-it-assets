@@ -602,7 +602,11 @@ async function loadDashboardData() {
         statusTableBody.innerHTML = statusRows.map(r => {
             const cnt = statusCounts[r.key] || 0;
             const av = (r.key === 'available' || r.key === 'in storage') ? cnt : 0;
-            return '<tr>' +
+            const filt = r.key === 'faultyUnderRepair' ? {} : (r.key === 'faulty' ? { condition: 'Faulty' } : { status: r.badgeLabel });
+            const ddAttr = r.key === 'faultyUnderRepair'
+                ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
+                : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
+            return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
                 '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
                 '<td><strong>' + cnt + '</strong></td>' +
                 '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
@@ -616,10 +620,16 @@ async function loadDashboardData() {
         const localCatFaulty = groupByField(assetsData, 'category', isFaulty);
         const localCatLost = groupByField(assetsData, 'category', isLost);
 
+        const ddAttrFor = payload => {
+            const j = JSON.stringify(payload).replace(/"/g, '&quot;');
+            return 'onclick="drillDownToAssets(' + j + ')"';
+        };
+        const rowHover = 'style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'"';
+
         const locationTableBody = document.getElementById('locationTableBody');
         locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
             const av = locAvailMap[item._id] || 0;
-            return '<tr>' +
+            return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
                 '<td>' + item._id + '</td>' +
                 '<td><strong>' + item.count + '</strong></td>' +
                 '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
@@ -630,7 +640,7 @@ async function loadDashboardData() {
         if (departmentTableBody) {
             departmentTableBody.innerHTML = localDepartmentData.slice(0, 8).map(item => {
                 const av = deptAvailMap[item._id] || 0;
-                return '<tr>' +
+                return '<tr ' + rowHover + ' title="View assets in &quot;' + item._id + '&quot;" ' + ddAttrFor({ department: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
@@ -642,7 +652,7 @@ async function loadDashboardData() {
         if (categoryAllTableBody) {
             categoryAllTableBody.innerHTML = localCategoryData.map(item => {
                 const av = catAvailMap[item._id] || 0;
-                return '<tr>' +
+                return '<tr ' + rowHover + ' title="View &quot;' + item._id + '&quot; assets" ' + ddAttrFor({ category: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
@@ -662,11 +672,11 @@ async function loadDashboardData() {
             const rows = [...allCats].sort().map(cat => {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
                 const av = catAvailMap[cat] || 0;
-                return '<tr>' +
+                return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets" ' + ddAttrFor({ category: cat }) + '>' +
                     '<td>' + cat + '</td>' +
-                    '<td><strong style="color:#10b981">' + h.good + '</strong></td>' +
-                    '<td><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
-                    '<td><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category"><strong style="color:#10b981">' + h.good + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged in this category"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             });
@@ -681,6 +691,35 @@ async function loadDashboardData() {
         createCategoryGoodChart(localCatGood);
         createCategoryFaultyChart(localCatFaulty);
         createCategoryLostChart(localCatLost);
+
+        // ---- Stat cards click-to-drilldown ----
+        const cardDrills = {
+            statCardTotal: {},
+            statCardAvailable: { status: 'Available' },
+            statCardAssigned: { status: 'Assigned' },
+            statCardStorage: { status: 'In Storage' },
+            statCardRepair: { status: 'Under Repair' },
+            statCardLost: { status: 'Lost' }
+        };
+        Object.entries(cardDrills).forEach(([id, payload]) => {
+            const ids = {
+                statCardTotal: null,
+                statCardAvailable: 'availableAssets',
+                statCardAssigned: 'assignedAssets',
+                statCardStorage: 'storageAssets',
+                statCardRepair: 'repairAssets',
+                statCardLost: 'lostAssets'
+            };
+            const target = ids[id] ? document.getElementById(ids[id])?.closest('.stat-card') : null;
+            if (id === 'statCardTotal') {
+                const t = document.getElementById('totalAssets')?.closest('.stat-card');
+                if (t) { t.style.cursor = 'pointer'; t.title = 'View all assets'; t.onclick = () => drillDownToAssets({}); }
+            } else if (target) {
+                target.style.cursor = 'pointer';
+                target.title = 'View ' + (payload.status || 'matching') + ' assets';
+                target.onclick = () => drillDownToAssets(payload);
+            }
+        });
 
         // Apply filters preview if any set
         applyDashboardFilters();
@@ -784,6 +823,11 @@ function createStatusChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             cutout: '60%',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = statusChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ status: label });
+            },
             plugins: {
                 legend: {
                     position: 'bottom',
@@ -829,6 +873,11 @@ function createLocationChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = locationChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ location: label });
+            },
             scales: {
                 x: {
                     beginAtZero: true,
@@ -879,6 +928,11 @@ function createDepartmentChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = departmentChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ department: label });
+            },
             scales: {
                 x: {
                     beginAtZero: true,
@@ -922,6 +976,11 @@ function createCategoryAllChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryAllChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label });
+            },
             plugins: {
                 legend: {
                     position: 'bottom',
@@ -959,6 +1018,11 @@ function createCategoryGoodChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryGoodChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, condition: 'Good' });
+            },
             scales: {
                 x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
                 y: { grid: { display: false } }
@@ -990,6 +1054,11 @@ function createCategoryFaultyChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryFaultyChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, condition: 'Faulty' });
+            },
             scales: {
                 x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
                 y: { grid: { display: false } }
@@ -1021,6 +1090,11 @@ function createCategoryLostChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryLostChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, status: 'Lost' });
+            },
             scales: {
                 x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
                 y: { grid: { display: false } }
@@ -1033,10 +1107,46 @@ function createCategoryLostChart(data) {
 // ========================================
 // ASSETS FUNCTIONS
 // ========================================
+function drillDownToAssets(filters = {}) {
+    try { localStorage.setItem('careit_drilldown', JSON.stringify(filters)); } catch (e) {}
+    switchPage('assetsPage');
+}
+
 async function loadAssets() {
     try {
         allAssets = await apiCall('/assets', 'GET');
         renderAssetsTable(allAssets);
+
+        let dd = null;
+        try {
+            const raw = localStorage.getItem('careit_drilldown');
+            if (raw) dd = JSON.parse(raw);
+        } catch (e) { dd = null; }
+        if (dd && typeof dd === 'object') {
+            try { localStorage.removeItem('careit_drilldown'); } catch (e) {}
+            const sInput = document.getElementById('searchInput');
+            const sf = document.getElementById('statusFilter');
+            const cf = document.getElementById('categoryFilter');
+            if (sInput) sInput.value = dd.search || '';
+            if (sf) sf.value = dd.status || '';
+            if (cf) cf.value = dd.category || '';
+            if (dd.department || dd.location || dd.condition) {
+                const fallback = [
+                    dd.department, dd.location, dd.condition
+                ].filter(Boolean).join(' ');
+                if (sInput && !sInput.value) sInput.value = fallback;
+            }
+            filterAssets();
+            const msg = [
+                dd.status ? 'Status: ' + dd.status : null,
+                dd.category ? 'Category: ' + dd.category : null,
+                dd.department ? 'Dept: ' + dd.department : null,
+                dd.location ? 'Location: ' + dd.location : null,
+                dd.condition ? 'Condition: ' + dd.condition : null,
+                dd.search ? 'Search: ' + dd.search : null
+            ].filter(Boolean).join('  •  ');
+            if (msg) showMessage('assetMessage', 'Filters applied from dashboard → ' + msg, 'info', 4500);
+        }
     } catch (error) {
         showMessage('assetMessage', 'Error loading assets: ' + error.message, 'error', 0);
     }
