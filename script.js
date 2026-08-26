@@ -662,25 +662,51 @@ async function loadDashboardData() {
 
         const healthMap = {};
         const allCats = new Set();
-        localCatGood.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].good = d.count; });
-        localCatFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
-        localCatLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
+        function classifyHealth(a) {
+            if (isLost(a)) return 'lost';
+            if (normStatus(a.status) === 'under repair') return 'faulty';
+            if (isFaulty(a)) return 'faulty';
+            if (isGood(a)) return 'good';
+            return 'good';
+        }
+        assetsData.forEach(a => {
+            const cat = a.category || 'Unknown';
+            allCats.add(cat);
+            if (!healthMap[cat]) healthMap[cat] = { good: 0, faulty: 0, lost: 0 };
+            healthMap[cat][classifyHealth(a)]++;
+        });
         localCategoryData.forEach(d => allCats.add(d._id));
+        [...allCats].forEach(cat => {
+            if (!healthMap[cat]) healthMap[cat] = { good: 0, faulty: 0, lost: 0 };
+        });
+
+        const healthTotals = { good: 0, faulty: 0, lost: 0 };
+        Object.values(healthMap).forEach(h => {
+            healthTotals.good += h.good; healthTotals.faulty += h.faulty; healthTotals.lost += h.lost;
+        });
 
         const healthTableBody = document.getElementById('categoryHealthTableBody');
         if (healthTableBody) {
-            const rows = [...allCats].sort().map(cat => {
+            const dataRows = [...allCats].sort().map(cat => {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
                 const av = catAvailMap[cat] || 0;
-                return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets" ' + ddAttrFor({ category: cat }) + '>' +
+                const catTotal = h.good + h.faulty + h.lost;
+                return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets (' + catTotal + ' total)" ' + ddAttrFor({ category: cat }) + '>' +
                     '<td>' + cat + '</td>' +
-                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category"><strong style="color:#10b981">' + h.good + '</strong></td>' +
-                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged in this category"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
-                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category: ' + h.good + '"><strong style="color:#10b981">' + h.good + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged/Under Repair in this category: ' + h.faulty + '"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category: ' + h.lost + '"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             });
-            healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>';
+            const footerHTML = '<tr style="font-weight:700;background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(251,191,36,0.08));border-top:2px solid #cbd5e1">' +
+                '<td style="letter-spacing:.8px;color:#1e293b">TOTAL ACROSS ALL CATEGORIES</td>' +
+                '<td style="color:#059669;font-size:1.05rem">' + healthTotals.good + '</td>' +
+                '<td style="color:#d97706;font-size:1.05rem">' + healthTotals.faulty + '</td>' +
+                '<td style="color:#dc2626;font-size:1.05rem">' + healthTotals.lost + '</td>' +
+                '<td><strong style="color:#334155">' + (healthTotals.good + healthTotals.faulty + healthTotals.lost) + '</strong></td>' +
+                '</tr>';
+            healthTableBody.innerHTML = (dataRows.length ? dataRows.join('') : '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>') + footerHTML;
         }
 
         const chartStatusInput = statusRows.map(r => ({ _id: r.badgeLabel, count: statusCounts[r.key] || 0 }));
