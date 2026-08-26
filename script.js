@@ -606,10 +606,13 @@ async function loadDashboardData() {
             const ddAttr = r.key === 'faultyUnderRepair'
                 ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
                 : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
+            const avCell = (r.key === 'available' || r.key === 'in storage')
+                ? ('<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ status: r.badgeLabel }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Issuable assets in this status">' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>')
+                : ('<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>');
             return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
                 '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
                 '<td><strong>' + cnt + '</strong></td>' +
-                '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                avCell +
                 '</tr>';
         }).join('');
 
@@ -629,10 +632,11 @@ async function loadDashboardData() {
         const locationTableBody = document.getElementById('locationTableBody');
         locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
             const av = locAvailMap[item._id] || 0;
+            const locAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ location: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets at this location"';
             return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
                 '<td>' + item._id + '</td>' +
                 '<td><strong>' + item.count + '</strong></td>' +
-                '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                '<td ' + locAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                 '</tr>';
         }).join('');
 
@@ -640,10 +644,11 @@ async function loadDashboardData() {
         if (departmentTableBody) {
             departmentTableBody.innerHTML = localDepartmentData.slice(0, 8).map(item => {
                 const av = deptAvailMap[item._id] || 0;
+                const deptAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ department: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this dept"';
                 return '<tr ' + rowHover + ' title="View assets in &quot;' + item._id + '&quot;" ' + ddAttrFor({ department: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
-                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '<td ' + deptAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -652,10 +657,11 @@ async function loadDashboardData() {
         if (categoryAllTableBody) {
             categoryAllTableBody.innerHTML = localCategoryData.map(item => {
                 const av = catAvailMap[item._id] || 0;
+                const catAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this category"';
                 return '<tr ' + rowHover + ' title="View &quot;' + item._id + '&quot; assets" ' + ddAttrFor({ category: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
-                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '<td ' + catAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -691,12 +697,13 @@ async function loadDashboardData() {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
                 const av = catAvailMap[cat] || 0;
                 const catTotal = h.good + h.faulty + h.lost;
+                const availDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable (Available/In Storage) in this category"';
                 return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets (' + catTotal + ' total)" ' + ddAttrFor({ category: cat }) + '>' +
                     '<td>' + cat + '</td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category: ' + h.good + '"><strong style="color:#10b981">' + h.good + '</strong></td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged/Under Repair in this category: ' + h.faulty + '"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category: ' + h.lost + '"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
-                    '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '<td ' + availDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             });
             const footerHTML = '<tr style="font-weight:700;background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(251,191,36,0.08));border-top:2px solid #cbd5e1">' +
@@ -746,6 +753,66 @@ async function loadDashboardData() {
                 target.onclick = () => drillDownToAssets(payload);
             }
         });
+
+        // ---- Dashboard Reconciliation / Duplicate Detection Audit ----
+        (function auditDashboard() {
+            const warnings = [];
+            const N = assetsData.length;
+
+            // 1) Duplicate _id check (actual duplicates in the DB / API response)
+            const idCounts = {};
+            assetsData.forEach(a => { const k = a._id || '__noid__'; idCounts[k] = (idCounts[k] || 0) + 1; });
+            const dupIds = Object.entries(idCounts).filter(([, v]) => v > 1);
+            if (dupIds.length > 0) warnings.push('⚠️ ' + dupIds.length + ' duplicate asset IDs (same asset returned ' + dupIds.reduce((s, [, v]) => s + (v - 1), 0) + ' extra times by API)');
+
+            // 2) Duplicate assetTag / serialNumber check (unique identifier conflicts)
+            const tagCounts = {};
+            assetsData.forEach(a => { if (!a.assetTag) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
+            const dupTags = Object.entries(tagCounts).filter(([, v]) => v > 1);
+            if (dupTags.length > 0) warnings.push('🏷️ ' + dupTags.length + ' duplicate Asset Tags found: ' + dupTags.slice(0, 5).map(([k, v]) => k + '×' + v).join(', ') + (dupTags.length > 5 ? ' …' : ''));
+
+            const serCounts = {};
+            assetsData.forEach(a => { if (!a.serialNumber) return; const k = a.serialNumber.trim().toLowerCase(); serCounts[k] = (serCounts[k] || 0) + 1; });
+            const dupSers = Object.entries(serCounts).filter(([, v]) => v > 1);
+            if (dupSers.length > 0) warnings.push('🔢 ' + dupSers.length + ' duplicate Serial Numbers found');
+
+            // 3) Stat cards sum === Total Assets ?
+            const statsSum = availableCount + assignedCount + storageCount + repairCount + lostCount;
+            if (statsSum !== N) warnings.push('🧮 Stat cards (' + statsSum + ') + unclassified (' + (N - statsSum) + ') ≠ Total (' + N + '). Check status values in the DB — unexpected status strings not being bucketed.');
+
+            // 4) Category All rows sum === Total Assets ?
+            const catAllSum = localCategoryData.reduce((s, d) => s + d.count, 0);
+            if (catAllSum !== N) warnings.push('📦 Categories table sum (' + catAllSum + ') ≠ Total (' + N + ') — ' + (N - catAllSum) + ' assets with no category (will appear as Unknown)');
+
+            // 5) Location rows sum === Total Assets ?
+            const locSum = localLocationData.reduce((s, d) => s + d.count, 0);
+            if (locSum !== N) warnings.push('📍 Locations table sum (' + locSum + ') ≠ Total (' + N + ')');
+
+            // 6) Dept rows sum === Total Assets ?
+            const deptSum = localDepartmentData.reduce((s, d) => s + d.count, 0);
+            if (deptSum !== N) warnings.push('🏢 Departments table sum (' + deptSum + ') ≠ Total (' + N + ')');
+
+            // 7) Health summary G + F + L per row === Category All per category ?
+            let healthMismatches = 0;
+            Object.keys(healthMap).forEach(cat => {
+                const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
+                const hs = h.good + h.faulty + h.lost;
+                const catRow = localCategoryData.find(d => d._id === cat);
+                const cs = catRow ? catRow.count : 0;
+                if (hs !== cs) healthMismatches++;
+            });
+            if (healthMismatches > 0) warnings.push('🩺 ' + healthMismatches + ' categories have Health (G+F+L) ≠ Category All total');
+
+            // 8) Health TOTAL row === Total Assets ?
+            const hSum = healthTotals.good + healthTotals.faulty + healthTotals.lost;
+            if (hSum !== N) warnings.push('🩺 Health summary total (' + hSum + ') ≠ Assets total (' + N + ')');
+
+            if (warnings.length) {
+                showMessage('dashboardMessage', 'Dashboard audit → ' + warnings.join('   |   '), 'error', 12000);
+            } else {
+                showMessage('dashboardMessage', '✅ Dashboard audit passed: ' + N + ' assets, no duplicates, all sections reconcile cleanly.', 'success', 4000);
+            }
+        })();
 
         // Apply filters preview if any set
         applyDashboardFilters();
@@ -1154,8 +1221,16 @@ async function loadAssets() {
             const sf = document.getElementById('statusFilter');
             const cf = document.getElementById('categoryFilter');
             if (sInput) sInput.value = dd.search || '';
-            if (sf) sf.value = dd.status || '';
             if (cf) cf.value = dd.category || '';
+            if (sf) {
+                if (Array.isArray(dd.statuses) && dd.statuses.length) {
+                    sf.value = '[or:' + dd.statuses.join(',') + ']';
+                } else if (dd.status) {
+                    sf.value = dd.status;
+                } else {
+                    sf.value = '';
+                }
+            }
             if (dd.department || dd.location || dd.condition) {
                 const fallback = [
                     dd.department, dd.location, dd.condition
@@ -1163,8 +1238,10 @@ async function loadAssets() {
                 if (sInput && !sInput.value) sInput.value = fallback;
             }
             filterAssets();
+            const statusesDisplay = Array.isArray(dd.statuses) && dd.statuses.length ? dd.statuses.join(' / ') : null;
             const msg = [
-                dd.status ? 'Status: ' + dd.status : null,
+                statusesDisplay ? 'Status: ' + statusesDisplay : null,
+                dd.status && !statusesDisplay ? 'Status: ' + dd.status : null,
                 dd.category ? 'Category: ' + dd.category : null,
                 dd.department ? 'Dept: ' + dd.department : null,
                 dd.location ? 'Location: ' + dd.location : null,
@@ -1322,9 +1399,17 @@ function filterAssets() {
     }
 
     if (statusFilter) {
-        filtered = filtered.filter(asset =>
-            (asset.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
-        );
+        const want = (statusFilter || '').toString().trim().toLowerCase();
+        const orList = want.startsWith('[or:') && want.endsWith(']')
+            ? want.slice(4, -1).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+            : null;
+        if (orList && orList.length) {
+            filtered = filtered.filter(a => orList.includes((a.status || '').toString().trim().toLowerCase()));
+        } else {
+            filtered = filtered.filter(asset =>
+                (asset.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
+            );
+        }
     }
 
     if (categoryFilter) {
