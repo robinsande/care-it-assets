@@ -185,15 +185,21 @@
         <header class="header" id="header"></header>
 
         <div class="container">
-            <div class="page-header">
-                <h1>Dashboard</h1>
+            <div class="dashboard-header">
+                <div class="dashboard-title-group">
+                    <h1>Overview Dashboard</h1>
+                    <p>Welcome back! Here's a comprehensive view of your IT asset inventory.</p>
+                </div>
+                <div class="dashboard-date" id="dashboardDate">
+                    📅 <span></span>
+                </div>
             </div>
 
             <div id="dashboardMessage" class="alert" style="display: none;"></div>
 
-            <!-- Stats Cards -->
-            <div class="grid grid-3">
-                <div class="stat-card">
+            <!-- Main Stats Cards -->
+            <div class="grid grid-6">
+                <div class="stat-card total">
                     <div class="stat-icon">📦</div>
                     <div class="stat-content">
                         <h3>Total Assets</h3>
@@ -201,7 +207,7 @@
                     </div>
                 </div>
 
-                <div class="stat-card">
+                <div class="stat-card available">
                     <div class="stat-icon">✓</div>
                     <div class="stat-content">
                         <h3>Available</h3>
@@ -209,17 +215,41 @@
                     </div>
                 </div>
 
-                <div class="stat-card">
+                <div class="stat-card assigned">
                     <div class="stat-icon">👤</div>
                     <div class="stat-content">
                         <h3>Assigned</h3>
                         <p class="stat-value" id="assignedAssets">0</p>
                     </div>
                 </div>
+
+                <div class="stat-card storage">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-content">
+                        <h3>In Storage</h3>
+                        <p class="stat-value" id="storageAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card repair">
+                    <div class="stat-icon">🔧</div>
+                    <div class="stat-content">
+                        <h3>Under Repair</h3>
+                        <p class="stat-value" id="repairAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card lost">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-content">
+                        <h3>Lost</h3>
+                        <p class="stat-value" id="lostAssets">0</p>
+                    </div>
+                </div>
             </div>
 
-            <!-- Charts -->
-            <div class="grid grid-2">
+            <!-- Charts Row -->
+            <div class="grid grid-3-charts">
                 <div class="chart-card">
                     <h2>Asset Status Distribution</h2>
                     <canvas id="statusChart"></canvas>
@@ -229,12 +259,17 @@
                     <h2>Assets by Location</h2>
                     <canvas id="locationChart"></canvas>
                 </div>
+
+                <div class="chart-card">
+                    <h2>Assets by Department</h2>
+                    <canvas id="departmentChart"></canvas>
+                </div>
             </div>
 
             <!-- Summary Tables -->
-            <div class="grid grid-2">
+            <div class="grid grid-3-charts">
                 <div class="stats-table">
-                    <h2>Status Summary</h2>
+                    <h2>Status Breakdown</h2>
                     <table>
                         <thead>
                             <tr>
@@ -257,6 +292,20 @@
                             </tr>
                         </thead>
                         <tbody id="locationTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="stats-table">
+                    <h2>Top Departments</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Department</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody id="departmentTableBody">
                         </tbody>
                     </table>
                 </div>

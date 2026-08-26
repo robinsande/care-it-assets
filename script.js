@@ -11,6 +11,7 @@ let allAssets = [];
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
+let departmentChart = null;
 let resetEmail = null; // For password reset flow
 
 // ========================================
@@ -429,18 +430,36 @@ async function handleRegister(event) {
 // ========================================
 async function loadDashboardData() {
     try {
-        const [statusData, locationData, assetsData] = await Promise.all([
+        // Set dashboard date
+        const dateEl = document.querySelector('#dashboardDate span');
+        if (dateEl) {
+            dateEl.textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        const [statusData, locationData, departmentData, assetsData] = await Promise.all([
             apiCall('/dashboard/status', 'GET'),
             apiCall('/dashboard/location', 'GET'),
+            apiCall('/dashboard/department', 'GET'),
             apiCall('/assets', 'GET'),
         ]);
 
         document.getElementById('totalAssets').textContent = assetsData.length;
         const availableCount = statusData.find(s => s._id === 'Available')?.count || 0;
         const assignedCount = statusData.find(s => s._id === 'Assigned')?.count || 0;
-        
+        const storageCount = statusData.find(s => s._id === 'In Storage')?.count || 0;
+        const repairCount = statusData.find(s => s._id === 'Under Repair')?.count || 0;
+        const lostCount = statusData.find(s => s._id === 'Lost')?.count || 0;
+
         document.getElementById('availableAssets').textContent = availableCount;
         document.getElementById('assignedAssets').textContent = assignedCount;
+        document.getElementById('storageAssets').textContent = storageCount;
+        document.getElementById('repairAssets').textContent = repairCount;
+        document.getElementById('lostAssets').textContent = lostCount;
 
         const statusTableBody = document.getElementById('statusTableBody');
         statusTableBody.innerHTML = statusData.map(item => {
@@ -452,8 +471,16 @@ async function loadDashboardData() {
             return '<tr><td>' + (item._id || 'Unknown') + '</td><td><strong>' + item.count + '</strong></td></tr>';
         }).join('');
 
+        const departmentTableBody = document.getElementById('departmentTableBody');
+        if (departmentTableBody) {
+            departmentTableBody.innerHTML = departmentData.slice(0, 8).map(item => {
+                return '<tr><td>' + (item._id || 'Unassigned') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+            }).join('');
+        }
+
         createStatusChart(statusData);
         createLocationChart(locationData);
+        createDepartmentChart(departmentData);
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
     }
@@ -463,7 +490,7 @@ function createStatusChart(data) {
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
 
-    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
 
     if (statusChart) {
         statusChart.destroy();
@@ -477,15 +504,26 @@ function createStatusChart(data) {
                 data: data.map(d => d.count),
                 backgroundColor: colors.slice(0, data.length),
                 borderColor: '#fff',
-                borderWidth: 2,
+                borderWidth: 3,
+                hoverOffset: 8,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            cutout: '60%',
             plugins: {
                 legend: {
                     position: 'bottom',
+                    labels: {
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: {
+                            size: 12,
+                            weight: '500'
+                        }
+                    }
                 }
             }
         }
@@ -512,21 +550,79 @@ function createLocationChart(data) {
                 backgroundColor: '#3b82f6',
                 borderColor: '#2563eb',
                 borderWidth: 1,
+                borderRadius: 6,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            indexAxis: 'x',
+            indexAxis: 'y',
             scales: {
-                y: {
+                x: {
                     beginAtZero: true,
+                    grid: {
+                        color: '#f3f4f6'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
                 }
             },
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top',
+                    display: false,
+                }
+            }
+        }
+    });
+}
+
+function createDepartmentChart(data) {
+    const ctx = document.getElementById('departmentChart');
+    if (!ctx) return;
+
+    const topData = data.slice(0, 8);
+    const colors = ['#FF5C00', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#6366f1'];
+
+    if (departmentChart) {
+        departmentChart.destroy();
+    }
+
+    departmentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: topData.map(d => d._id || 'Unassigned'),
+            datasets: [{
+                label: 'Assets',
+                data: topData.map(d => d.count),
+                backgroundColor: colors.slice(0, topData.length),
+                borderColor: '#fff',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#f3f4f6'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false,
                 }
             }
         }
