@@ -862,7 +862,7 @@ async function editAsset(assetId) {
 
     editingAssetId = assetId;
     document.getElementById('assetModalTitle').textContent = 'Edit Asset';
-    document.getElementById('assetTag').disabled = true;
+    document.getElementById('assetTag').disabled = false;
 
     document.getElementById('assetTag').value = asset.assetTag;
     document.getElementById('category').value = asset.category;
