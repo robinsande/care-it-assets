@@ -1019,6 +1019,34 @@ tbody tr:hover {
 }
 
 /* ========================================
+   DASHBOARD: EDGE-TO-EDGE FULL SCREEN
+   ======================================== */
+#dashboardPage > .container {
+    max-width: none;
+    width: 100%;
+    padding: 16px 24px 40px;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+#dashboardPage + * { /* no-op placeholder for readability */ }
+
+@media (min-width: 1400px) {
+    #dashboardPage > .container {
+        padding: 18px 36px 48px;
+    }
+    #dashboardPage .grid-6 {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    #dashboardPage > .container {
+        padding: 12px 14px 32px;
+    }
+}
+
+/* ========================================
    ASSET DETAILS
    ======================================== */
 .asset-details-content {
