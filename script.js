@@ -591,12 +591,12 @@ async function loadDashboardData() {
             if (statusCounts[s] !== undefined) statusCounts[s]++;
             if (isFaulty(a) && s !== 'under repair') statusCounts.faulty++;
         });
+        statusCounts.faultyUnderRepair = (statusCounts['under repair'] || 0) + (statusCounts.faulty || 0);
         const statusRows = [
             { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
             { label: 'In Storage (Can be Issued to Staff)', key: 'in storage', badgeLabel: 'In Storage' },
             { label: 'Assigned (Assigned to Staff - In Use)', key: 'assigned', badgeLabel: 'Assigned' },
-            { label: 'Under Repair (Faulty - Can be Fixed)', key: 'under repair', badgeLabel: 'Under Repair' },
-            { label: 'Faulty / Damaged (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
+            { label: 'Faulty / Under Repair (Can be Fixed)', key: 'faultyUnderRepair', badgeLabel: 'Under Repair' },
             { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
         ];
         const statusTableBody = document.getElementById('statusTableBody');
