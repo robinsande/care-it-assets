@@ -505,18 +505,36 @@ async function loadDashboardData() {
             apiCall('/dashboard/available/condition', 'GET')
         ]);
 
-        // Store assets for dashboard filtering
         window.__dashboardAllAssets = assetsData;
 
-        const totalCount = availTotals.total;
-        const availableCount = availTotals.available;
-        const assignedCount = availTotals.assigned;
-        const storageCount = availTotals.inStorage;
-        const repairCount = availTotals.underRepair;
-        const lostCount = availTotals.lost;
-        const issuableCount = availTotals.issuable;
+        function statCounts(arr) {
+            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, issuable: 0 };
+            arr.forEach(a => {
+                const s = (a.status || '').toString().trim().toLowerCase();
+                if (s === 'available') { c.available++; c.issuable++; }
+                else if (s === 'assigned') c.assigned++;
+                else if (s === 'in storage') { c.inStorage++; c.issuable++; }
+                else if (s === 'under repair') c.underRepair++;
+                else if (s === 'lost') c.lost++;
+            });
+            return c;
+        }
+        const counts = statCounts(assetsData);
+        const totalCount = counts.total;
+        const availableCount = counts.available;
+        const assignedCount = counts.assigned;
+        const storageCount = counts.inStorage;
+        const repairCount = counts.underRepair;
+        const lostCount = counts.lost;
+        const issuableCount = counts.issuable;
 
-        document.getElementById('totalAssets').textContent = totalCount;
+        const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setStat('totalAssets', totalCount);
+        setStat('availableAssets', availableCount);
+        setStat('assignedAssets', assignedCount);
+        setStat('storageAssets', storageCount);
+        setStat('repairAssets', repairCount);
+        setStat('lostAssets', lostCount);
         animateCount('totalAssets', totalCount);
         animateCount('availableAssets', availableCount);
         animateCount('assignedAssets', assignedCount);
@@ -524,13 +542,42 @@ async function loadDashboardData() {
         animateCount('repairAssets', repairCount);
         animateCount('lostAssets', lostCount);
 
-        // ---- Availability pills across every section ----
+        const normStatus = s => (s || '').toString().trim().toLowerCase();
+        const isIssuable = a => { const s = normStatus(a.status); return s === 'available' || s === 'in storage'; };
+        const normCond = c => (c || '').toString().trim().toLowerCase();
+        const isGood = a => { const c = normCond(a.condition); return c === 'good' || c === 'new'; };
+        const isFaulty = a => { const c = normCond(a.condition); return c === 'faulty' || c === 'damaged'; };
+        const isLost = a => normStatus(a.status) === 'lost';
+
+        function groupByField(arr, field, extraFilter) {
+            const map = {};
+            arr.forEach(a => {
+                if (extraFilter && !extraFilter(a)) return;
+                const key = a[field] || (field === 'department' ? 'Unassigned' : 'Unknown');
+                map[key] = (map[key] || 0) + 1;
+            });
+            return Object.entries(map).map(([k, v]) => ({ _id: k, count: v })).sort((x, y) => y.count - x.count);
+        }
+        function groupIssuable(arr, field) {
+            const map = {};
+            arr.forEach(a => {
+                if (!isIssuable(a)) return;
+                const key = a[field] || (field === 'department' ? 'Unassigned' : 'Unknown');
+                map[key] = (map[key] || 0) + 1;
+            });
+            return map;
+        }
+
+        const locAvailMap = groupIssuable(assetsData, 'location');
+        const deptAvailMap = groupIssuable(assetsData, 'department');
+        const catAvailMap = groupIssuable(assetsData, 'category');
+
         setAvailabilityPill('avail-category', issuableCount, totalCount);
         setAvailabilityPill('avail-status', issuableCount, totalCount);
         setAvailabilityPill('avail-department', issuableCount, totalCount);
         setAvailabilityPill('avail-location', issuableCount, totalCount);
-        setAvailabilityPill('avail-categorygood', availByCondition['Good'] + availByCondition['New'] || 0, issuableCount);
-        setAvailabilityPill('avail-categoryfaulty', availByCondition['Faulty'] + availByCondition['Damaged'] || 0, issuableCount);
+        setAvailabilityPill('avail-categorygood', assetsData.filter(isGood).filter(isIssuable).length, issuableCount);
+        setAvailabilityPill('avail-categoryfaulty', assetsData.filter(isFaulty).filter(isIssuable).length, issuableCount);
         setAvailabilityPill('avail-categorylost', 0, issuableCount);
         setAvailabilityPill('avail-statustable', issuableCount, totalCount);
         setAvailabilityPill('avail-healthtable', issuableCount, totalCount);
@@ -538,24 +585,43 @@ async function loadDashboardData() {
         setAvailabilityPill('avail-departmentstable', issuableCount, totalCount);
         setAvailabilityPill('avail-categorytable', issuableCount, totalCount);
 
+        const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0 };
+        assetsData.forEach(a => {
+            const s = normStatus(a.status);
+            if (statusCounts[s] !== undefined) statusCounts[s]++;
+            if (isFaulty(a) && s !== 'under repair') statusCounts.faulty++;
+        });
+        const statusRows = [
+            { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
+            { label: 'In Storage (Can be Issued to Staff)', key: 'in storage', badgeLabel: 'In Storage' },
+            { label: 'Assigned (Assigned to Staff - In Use)', key: 'assigned', badgeLabel: 'Assigned' },
+            { label: 'Under Repair (Faulty - Can be Fixed)', key: 'under repair', badgeLabel: 'Under Repair' },
+            { label: 'Faulty / Damaged (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
+            { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
+        ];
         const statusTableBody = document.getElementById('statusTableBody');
-        statusTableBody.innerHTML = statusData.map(item => {
-            let avail = 0;
-            if (item.status === 'Available') avail = availByStatus['Available'] || 0;
-            else if (item.status === 'In Storage') avail = availByStatus['In Storage'] || 0;
-            else if (item.status === 'Faulty') avail = 0; // Faulty condition - not issuable yet
+        statusTableBody.innerHTML = statusRows.map(r => {
+            const cnt = statusCounts[r.key] || 0;
+            const av = (r.key === 'available' || r.key === 'in storage') ? cnt : 0;
             return '<tr>' +
-                '<td><span class="badge ' + getStatusBadgeClass(item._id) + '">' + item._id + '</span></td>' +
-                '<td><strong>' + item.count + '</strong></td>' +
-                '<td>' + (avail > 0 ? '<strong style="color:#10b981">✓ ' + avail + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
+                '<td><strong>' + cnt + '</strong></td>' +
+                '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                 '</tr>';
         }).join('');
 
+        const localLocationData = groupByField(assetsData, 'location');
+        const localDepartmentData = groupByField(assetsData, 'department');
+        const localCategoryData = groupByField(assetsData, 'category');
+        const localCatGood = groupByField(assetsData, 'category', isGood);
+        const localCatFaulty = groupByField(assetsData, 'category', isFaulty);
+        const localCatLost = groupByField(assetsData, 'category', isLost);
+
         const locationTableBody = document.getElementById('locationTableBody');
-        locationTableBody.innerHTML = locationData.slice(0, 8).map(item => {
-            const av = availByLoc[item._id] || 0;
+        locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
+            const av = locAvailMap[item._id] || 0;
             return '<tr>' +
-                '<td>' + (item._id || 'Unknown') + '</td>' +
+                '<td>' + item._id + '</td>' +
                 '<td><strong>' + item.count + '</strong></td>' +
                 '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                 '</tr>';
@@ -563,10 +629,10 @@ async function loadDashboardData() {
 
         const departmentTableBody = document.getElementById('departmentTableBody');
         if (departmentTableBody) {
-            departmentTableBody.innerHTML = departmentData.slice(0, 8).map(item => {
-                const av = availByDept[item._id] || 0;
+            departmentTableBody.innerHTML = localDepartmentData.slice(0, 8).map(item => {
+                const av = deptAvailMap[item._id] || 0;
                 return '<tr>' +
-                    '<td>' + (item._id || 'Unassigned') + '</td>' +
+                    '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
@@ -575,29 +641,28 @@ async function loadDashboardData() {
 
         const categoryAllTableBody = document.getElementById('categoryAllTableBody');
         if (categoryAllTableBody) {
-            categoryAllTableBody.innerHTML = categoryData.map(item => {
-                const av = availByCat[item._id] || 0;
+            categoryAllTableBody.innerHTML = localCategoryData.map(item => {
+                const av = catAvailMap[item._id] || 0;
                 return '<tr>' +
-                    '<td>' + (item._id || 'Unknown') + '</td>' +
+                    '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
                     '<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             }).join('');
         }
 
-        // Health summary table: merge good/faulty/lost by category
         const healthMap = {};
         const allCats = new Set();
-        categoryGood.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].good = d.count; });
-        categoryFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
-        categoryLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
-        categoryData.forEach(d => allCats.add(d._id));
+        localCatGood.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].good = d.count; });
+        localCatFaulty.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].faulty = d.count; });
+        localCatLost.forEach(d => { allCats.add(d._id); healthMap[d._id] = healthMap[d._id] || { good: 0, faulty: 0, lost: 0 }; healthMap[d._id].lost = d.count; });
+        localCategoryData.forEach(d => allCats.add(d._id));
 
         const healthTableBody = document.getElementById('categoryHealthTableBody');
         if (healthTableBody) {
             const rows = [...allCats].sort().map(cat => {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
-                const av = availByCat[cat] || 0;
+                const av = catAvailMap[cat] || 0;
                 return '<tr>' +
                     '<td>' + cat + '</td>' +
                     '<td><strong style="color:#10b981">' + h.good + '</strong></td>' +
@@ -609,13 +674,14 @@ async function loadDashboardData() {
             healthTableBody.innerHTML = rows.join('') || '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>';
         }
 
-        createStatusChart(statusData);
-        createLocationChart(locationData);
-        createDepartmentChart(departmentData);
-        createCategoryAllChart(categoryData);
-        createCategoryGoodChart(categoryGood);
-        createCategoryFaultyChart(categoryFaulty);
-        createCategoryLostChart(categoryLost);
+        const chartStatusInput = statusRows.map(r => ({ _id: r.badgeLabel, count: statusCounts[r.key] || 0 }));
+        createStatusChart(chartStatusInput);
+        createLocationChart(localLocationData);
+        createDepartmentChart(localDepartmentData);
+        createCategoryAllChart(localCategoryData);
+        createCategoryGoodChart(localCatGood);
+        createCategoryFaultyChart(localCatFaulty);
+        createCategoryLostChart(localCatLost);
 
         // Apply filters preview if any set
         applyDashboardFilters();
@@ -634,8 +700,8 @@ function applyDashboardFilters() {
     const matchCount = document.getElementById('dashboardMatchCount');
 
     const matches = all.filter(a => {
-        if (statusF && a.status !== statusF) return false;
-        if (categoryF && a.category !== categoryF) return false;
+        if (statusF && (a.status || '').toString().trim().toLowerCase() !== statusF.toLowerCase()) return false;
+        if (categoryF && (a.category || '').toString().trim().toLowerCase() !== categoryF.toLowerCase()) return false;
         if (search) {
             const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition]
                 .filter(Boolean).join(' ').toLowerCase();
@@ -649,7 +715,10 @@ function applyDashboardFilters() {
     if (!hasAny) return;
 
     if (matchCount) matchCount.textContent = matches.length;
-    const issuable = matches.filter(m => ISSUABLE_STATUSES.includes(m.status)).length;
+    const issuable = matches.filter(m => {
+        const s = (m.status || '').toString().trim().toLowerCase();
+        return s === 'available' || s === 'in storage';
+    }).length;
     setAvailabilityPill('avail-dashboard-match', issuable, matches.length);
 
     if (matchesBody) {
@@ -1101,29 +1170,44 @@ function bulkEditSelected() {
 }
 
 function filterAssets() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
     const statusFilter = document.getElementById('statusFilter').value;
     const categoryFilter = document.getElementById('categoryFilter').value;
 
     let filtered = allAssets;
 
     if (searchTerm) {
-        filtered = filtered.filter(asset =>
-            (asset.assetTag?.toLowerCase().includes(searchTerm)) ||
-            (asset.serialNumber?.toLowerCase().includes(searchTerm)) ||
-            (asset.assignedTo?.toLowerCase().includes(searchTerm))
-        );
+        filtered = filtered.filter(asset => {
+            const hay = [
+                asset.assetTag, asset.serialNumber, asset.brand, asset.model,
+                asset.assignedTo, asset.location, asset.department, asset.condition
+            ].filter(Boolean).join(' ').toLowerCase();
+            return hay.includes(searchTerm);
+        });
     }
 
     if (statusFilter) {
-        filtered = filtered.filter(asset => asset.status === statusFilter);
+        filtered = filtered.filter(asset =>
+            (asset.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
+        );
     }
 
     if (categoryFilter) {
-        filtered = filtered.filter(asset => asset.category === categoryFilter);
+        filtered = filtered.filter(asset =>
+            (asset.category || '').toString().trim().toLowerCase() === categoryFilter.toLowerCase()
+        );
     }
 
     renderAssetsTable(filtered);
+}
+
+function clearAssetFilters() {
+    ['searchInput', 'statusFilter', 'categoryFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    filterAssets();
 }
 
 function openAssetModal() {

@@ -198,7 +198,7 @@
             <div id="dashboardMessage" class="alert" style="display: none;"></div>
 
             <!-- Dashboard Search / Filters Row -->
-            <div class="asset-filters dashboard-filters">
+            <div class="filters">
                 <div class="search-box">
                     <input
                         type="text"
@@ -232,7 +232,7 @@
                     <option value="Tablets">Tablets</option>
                 </select>
 
-                <button type="button" class="btn btn-secondary small" onclick="clearDashboardFilters()">✕ Clear Filters</button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="clearDashboardFilters()">✕ Clear Filters</button>
             </div>
 
             <!-- Filtered Dashboard Assets Preview -->
@@ -507,7 +507,7 @@
                     <input 
                         type="text" 
                         id="searchInput" 
-                        placeholder="Search by Tag, Serial Number, or Assigned To..." 
+                        placeholder="🔍 Search by Tag, Brand, Model, Serial, Assigned To, Location, Department..." 
                         onkeyup="filterAssets()"
                     >
                 </div>
@@ -535,6 +535,8 @@
                     <option value="Network Devices">Network Devices</option>
                     <option value="Tablets">Tablets</option>
                 </select>
+
+                <button type="button" class="btn btn-secondary btn-small" onclick="clearAssetFilters()">✕ Clear Filters</button>
             </div>
 
             <!-- Assets Table -->
