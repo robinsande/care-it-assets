@@ -1512,6 +1512,18 @@ function clearAssetFilters() {
     filterAssets();
 }
 
+function setLaptopSpecsVisibility(category) {
+    const wrap = document.querySelector('[data-laptop-specs]');
+    if (!wrap) return;
+    wrap.style.display = (category === 'Laptops') ? 'block' : 'none';
+    if (category !== 'Laptops') {
+        ['generation', 'processor', 'ram', 'ssd'].forEach(id => {
+            const s = document.getElementById(id);
+            if (s) s.value = '';
+        });
+    }
+}
+
 function openAssetModal() {
     if (!isAdmin()) {
         showMessage('assetMessage', 'Only admins can add assets', 'error');
@@ -1522,6 +1534,7 @@ function openAssetModal() {
     document.getElementById('assetForm').reset();
     document.getElementById('assetModalTitle').textContent = 'Add New Asset';
     document.getElementById('assetTag').disabled = false;
+    setLaptopSpecsVisibility('');
     document.getElementById('assetModal').style.display = 'flex';
 }
 
@@ -1603,6 +1616,7 @@ async function editAsset(assetId) {
     document.getElementById('department').value = asset.department || '';
     document.getElementById('location').value = asset.location || '';
 
+    setLaptopSpecsVisibility(asset.category || '');
     document.getElementById('assetModal').style.display = 'flex';
 }
 
@@ -1663,10 +1677,12 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Serial Number</span><span class="detail-value">' + (asset.serialNumber || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Model</span><span class="detail-value">' + (asset.model || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Brand</span><span class="detail-value">' + (asset.brand || '-') + '</span></div>';
-    detailsHTML += '<div class="detail-item"><span class="detail-label">Generation</span><span class="detail-value">' + (asset.generation || '-') + '</span></div>';
-    detailsHTML += '<div class="detail-item"><span class="detail-label">Processor</span><span class="detail-value">' + (asset.processor || '-') + '</span></div>';
-    detailsHTML += '<div class="detail-item"><span class="detail-label">RAM</span><span class="detail-value">' + (asset.ram || '-') + '</span></div>';
-    detailsHTML += '<div class="detail-item"><span class="detail-label">SSD</span><span class="detail-value">' + (asset.ssd || '-') + '</span></div>';
+    if (asset.category === 'Laptops') {
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Generation</span><span class="detail-value">' + (asset.generation || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Processor</span><span class="detail-value">' + (asset.processor || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">RAM</span><span class="detail-value">' + (asset.ram || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">SSD</span><span class="detail-value">' + (asset.ssd || '-') + '</span></div>';
+    }
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
@@ -1860,5 +1876,9 @@ async function exportToPdf() {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+    const cat = document.getElementById('category');
+    if (cat) {
+        cat.addEventListener('change', () => setLaptopSpecsVisibility(cat.value || ''));
+    }
     initializeApp();
 });
