@@ -1551,16 +1551,13 @@ async function submitAssetForm(event) {
         return;
     }
 
+    const category = document.getElementById('category').value;
     const formData = {
         assetTag: document.getElementById('assetTag').value,
-        category: document.getElementById('category').value,
+        category: category,
         brand: document.getElementById('brand').value,
         model: document.getElementById('model').value,
         serialNumber: document.getElementById('serialNumber').value,
-        generation: document.getElementById('generation').value,
-        processor: document.getElementById('processor').value,
-        ram: document.getElementById('ram').value,
-        ssd: document.getElementById('ssd').value,
         purchaseDate: document.getElementById('purchaseDate').value,
         purchasePrice: document.getElementById('purchasePrice').value,
         status: document.getElementById('status').value,
@@ -1569,6 +1566,16 @@ async function submitAssetForm(event) {
         department: document.getElementById('department').value,
         location: document.getElementById('location').value,
     };
+    if (category === 'Laptops') {
+        const gen = document.getElementById('generation').value;
+        const cpu = document.getElementById('processor').value;
+        const ram = document.getElementById('ram').value;
+        const ssd = document.getElementById('ssd').value;
+        if (gen) formData.generation = gen;
+        if (cpu) formData.processor = cpu;
+        if (ram) formData.ram = ram;
+        if (ssd) formData.ssd = ssd;
+    }
 
     try {
         if (editingAssetId) {
