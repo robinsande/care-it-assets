@@ -909,7 +909,7 @@ function applyDashboardFilters() {
         if (statusF && (a.status || '').toString().trim().toLowerCase() !== statusF.toLowerCase()) return false;
         if (categoryF && (a.category || '').toString().trim().toLowerCase() !== categoryF.toLowerCase()) return false;
         if (search) {
-            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition, a.returnInfo && a.returnInfo.returnedBy]
+            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition, a.returnInfo && a.returnInfo.returnedBy, a.generation, a.processor, a.ram, a.ssd]
                 .filter(Boolean).join(' ').toLowerCase();
             if (!hay.includes(search)) return false;
         }
@@ -1473,7 +1473,8 @@ function filterAssets() {
             const hay = [
                 asset.assetTag, asset.serialNumber, asset.brand, asset.model,
                 asset.assignedTo, asset.location, asset.department, asset.condition,
-                asset.returnInfo && asset.returnInfo.returnedBy
+                asset.returnInfo && asset.returnInfo.returnedBy,
+                asset.generation, asset.processor, asset.ram, asset.ssd
             ].filter(Boolean).join(' ').toLowerCase();
             return hay.includes(searchTerm);
         });
@@ -1543,6 +1544,10 @@ async function submitAssetForm(event) {
         brand: document.getElementById('brand').value,
         model: document.getElementById('model').value,
         serialNumber: document.getElementById('serialNumber').value,
+        generation: document.getElementById('generation').value,
+        processor: document.getElementById('processor').value,
+        ram: document.getElementById('ram').value,
+        ssd: document.getElementById('ssd').value,
         purchaseDate: document.getElementById('purchaseDate').value,
         purchasePrice: document.getElementById('purchasePrice').value,
         status: document.getElementById('status').value,
@@ -1586,6 +1591,10 @@ async function editAsset(assetId) {
     document.getElementById('brand').value = asset.brand || '';
     document.getElementById('model').value = asset.model || '';
     document.getElementById('serialNumber').value = asset.serialNumber || '';
+    document.getElementById('generation').value = asset.generation || '';
+    document.getElementById('processor').value = asset.processor || '';
+    document.getElementById('ram').value = asset.ram || '';
+    document.getElementById('ssd').value = asset.ssd || '';
     document.getElementById('purchaseDate').value = asset.purchaseDate?.split('T')[0] || '';
     document.getElementById('purchasePrice').value = asset.purchasePrice || '';
     document.getElementById('status').value = asset.status;
@@ -1654,6 +1663,10 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Serial Number</span><span class="detail-value">' + (asset.serialNumber || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Model</span><span class="detail-value">' + (asset.model || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Brand</span><span class="detail-value">' + (asset.brand || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">Generation</span><span class="detail-value">' + (asset.generation || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">Processor</span><span class="detail-value">' + (asset.processor || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">RAM</span><span class="detail-value">' + (asset.ram || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">SSD</span><span class="detail-value">' + (asset.ssd || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
