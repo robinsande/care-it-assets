@@ -909,7 +909,7 @@ function applyDashboardFilters() {
         if (statusF && (a.status || '').toString().trim().toLowerCase() !== statusF.toLowerCase()) return false;
         if (categoryF && (a.category || '').toString().trim().toLowerCase() !== categoryF.toLowerCase()) return false;
         if (search) {
-            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition]
+            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition, a.returnInfo && a.returnInfo.returnedBy]
                 .filter(Boolean).join(' ').toLowerCase();
             if (!hay.includes(search)) return false;
         }
@@ -929,7 +929,7 @@ function applyDashboardFilters() {
 
     if (matchesBody) {
         if (!matches.length) {
-            matchesBody.innerHTML = '<tr><td colspan="8" class="text-center no-data">No matching assets</td></tr>';
+            matchesBody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No matching assets</td></tr>';
         } else {
             matchesBody.innerHTML = matches.slice(0, 50).map(a => {
                 return '<tr>' +
@@ -940,9 +940,10 @@ function applyDashboardFilters() {
                     '<td>' + (a.location || '-') + '</td>' +
                     '<td>' + (a.department || '-') + '</td>' +
                     '<td>' + (a.assignedTo || '-') + '</td>' +
+                    '<td>' + (a.returnInfo && a.returnInfo.returnedBy || '-') + '</td>' +
                     '<td>' + (a.condition || '-') + '</td>' +
                     '</tr>';
-            }).join('') + (matches.length > 50 ? '<tr><td colspan="8" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
+            }).join('') + (matches.length > 50 ? '<tr><td colspan="9" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
         }
     }
 }
@@ -1335,7 +1336,7 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
         updateBulkActionsBar();
         return;
     }
@@ -1349,7 +1350,11 @@ function renderAssetsTable(assets) {
             actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
 
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
+            ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
+            : '-';
+
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -1467,7 +1472,8 @@ function filterAssets() {
         filtered = filtered.filter(asset => {
             const hay = [
                 asset.assetTag, asset.serialNumber, asset.brand, asset.model,
-                asset.assignedTo, asset.location, asset.department, asset.condition
+                asset.assignedTo, asset.location, asset.department, asset.condition,
+                asset.returnInfo && asset.returnInfo.returnedBy
             ].filter(Boolean).join(' ').toLowerCase();
             return hay.includes(searchTerm);
         });
@@ -1651,6 +1657,7 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">Returned By</span><span class="detail-value">' + (asset.returnInfo && asset.returnInfo.returnedBy ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' (' + formatDate(asset.returnInfo.returnDate) + ')' : '') : '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Department</span><span class="detail-value">' + (asset.department || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Location</span><span class="detail-value">' + (asset.location || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Purchase Date</span><span class="detail-value">' + formatDate(asset.purchaseDate) + '</span></div>';
@@ -1670,7 +1677,7 @@ function showAssignForm(assetId) {
     let formHTML = '<form onsubmit="submitAssignForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
-    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option></select></div>';
+    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option></select></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
 }
