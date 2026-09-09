@@ -167,7 +167,11 @@ function getUserRole() {
 }
 
 function isAdmin() {
-    return getUserRole() === 'admin';
+    return ['admin', 'superadmin'].includes(getUserRole());
+}
+
+function isSuperAdmin() {
+    return getUserRole() === 'superadmin';
 }
 
 function logout() {
@@ -245,10 +249,10 @@ function renderHeader(headerId = 'header') {
 
     const user = getUser();
     const userRole = getUserRole();
-    const roleDisplay = userRole === 'admin' ? 'ADMIN' : 'USER';
+    const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
 
     let adminLinkHTML = '';
-    if (userRole === 'admin') {
+    if (['admin', 'superadmin'].includes(userRole)) {
         adminLinkHTML = '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Admin Panel</a>';
     }
 
@@ -265,7 +269,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<div class="header-right">';
     headerHTML += '<div class="user-info">';
     headerHTML += '<span>' + (user?.email || '') + '</span>';
-    headerHTML += '<span class="role-label">' + (userRole === 'admin' ? 'Admin' : 'User') + '</span>';
+    headerHTML += '<span class="role-label">' + (userRole === 'superadmin' ? 'Super Admin' : userRole === 'admin' ? 'Admin' : userRole === 'viewer' ? 'Viewer' : 'User') + '</span>';
     headerHTML += '</div>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button>';
     headerHTML += '</div>';
@@ -282,9 +286,10 @@ function renderHeaderActions() {
     const userRole = getUserRole();
     let actionsHTML = '';
 
-    if (userRole === 'admin') {
+    if (['admin', 'superadmin'].includes(userRole)) {
         actionsHTML = '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel</button>';
+        actionsHTML += '<button class="btn btn-secondary" onclick="switchPage(\'usersPage\')">Users / Ops</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     } else {
@@ -1274,6 +1279,151 @@ function createCategoryLostChart(data) {
 }
 
 // ========================================
+// USERS / ADMIN FUNCTIONS
+// ========================================
+async function loadUsers() {
+    try {
+        const users = await apiCall('/users', 'GET');
+        const tbody = document.getElementById('usersTableBody');
+        if (!tbody) return;
+
+        if (!users || !users.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map(user => {
+            const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
+            return '<tr>' +
+                '<td>' + (user.name || '-') + '</td>' +
+                '<td>' + (user.email || '-') + '</td>' +
+                '<td>' + (user.role || 'user') + '</td>' +
+                '<td>' + formatDate(user.createdAt) + '</td>' +
+                '<td>' + (canDelete ? '<button class="btn btn-small btn-danger" onclick="deleteUser(\'' + user._id + '\')">Delete</button>' : '<span style="color:#94a3b8;">Protected</span>') + '</td>' +
+                '</tr>';
+        }).join('');
+    } catch (error) {
+        showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
+    }
+}
+
+function openUserCreateModal() {
+    const form = document.getElementById('createUserForm');
+    if (!form) return;
+    const roleSelect = document.getElementById('newUserRole');
+    if (roleSelect) {
+        const isSuper = isSuperAdmin();
+        roleSelect.innerHTML = '<option value="user">User</option>' +
+            '<option value="viewer">Viewer</option>' +
+            '<option value="admin">Admin</option>' +
+            (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
+    }
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const nameInput = document.getElementById('newUserName');
+    if (nameInput) nameInput.focus();
+}
+
+async function submitCreateUser(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can manage users', 'error');
+        return;
+    }
+
+    const payload = {
+        name: document.getElementById('newUserName').value,
+        email: document.getElementById('newUserEmail').value,
+        password: document.getElementById('newUserPassword').value,
+        role: document.getElementById('newUserRole').value,
+    };
+
+    try {
+        await apiCall('/users', 'POST', payload);
+        showMessage('usersMessage', 'User created successfully', 'success');
+        document.getElementById('createUserForm').reset();
+        loadUsers();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error creating user', 'error', 0);
+    }
+}
+
+async function deleteUser(userId) {
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can delete users', 'error');
+        return;
+    }
+
+    if (!confirm('Delete this user?')) return;
+
+    try {
+        await apiCall('/users/' + userId, 'DELETE');
+        showMessage('usersMessage', 'User deleted successfully', 'success');
+        loadUsers();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error deleting user', 'error', 0);
+    }
+}
+
+async function submitReturnedAsset(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can record returned items', 'error');
+        return;
+    }
+
+    const payload = {
+        description: document.getElementById('returnedDescription').value,
+        category: document.getElementById('returnedCategory').value,
+        brand: document.getElementById('returnedBrand').value,
+        model: document.getElementById('returnedModel').value,
+        serialNumber: document.getElementById('returnedSerial').value,
+        returnedBy: document.getElementById('returnedBy').value,
+        department: document.getElementById('returnedDepartment').value,
+        location: document.getElementById('returnedLocation').value,
+        condition: document.getElementById('returnedCondition').value,
+        notes: document.getElementById('returnedNotes').value,
+    };
+
+    try {
+        await apiCall('/returned-assets', 'POST', payload);
+        showMessage('usersMessage', 'Returned item recorded successfully', 'success');
+        document.getElementById('returnedAssetForm').reset();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Unable to record returned item', 'error', 0);
+    }
+}
+
+async function submitIssueItem(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can issue IT equipment', 'error');
+        return;
+    }
+
+    const payload = {
+        itemName: document.getElementById('issueItemName').value,
+        category: document.getElementById('issueCategory').value,
+        description: document.getElementById('issueDescription').value,
+        serialNumber: document.getElementById('issueSerialNumber').value,
+        assignedTo: document.getElementById('issueAssignedTo').value,
+        issuedBy: document.getElementById('issueIssuedBy').value,
+        department: document.getElementById('issueDepartment').value,
+        location: document.getElementById('issueLocation').value,
+        condition: document.getElementById('issueCondition').value,
+        returnDueDate: document.getElementById('issueReturnDueDate').value,
+        notes: document.getElementById('issueNotes').value,
+    };
+
+    try {
+        await apiCall('/it-issues', 'POST', payload);
+        showMessage('usersMessage', 'IT item issued successfully', 'success');
+        document.getElementById('issueItemForm').reset();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Unable to issue IT item', 'error', 0);
+    }
+}
+
+// ========================================
 // ASSETS FUNCTIONS
 // ========================================
 function drillDownToAssets(filters = {}) {
@@ -1458,7 +1608,48 @@ function bulkEditSelected() {
         return;
     }
     
-    showMessage('assetMessage', 'Bulk edit (multiple assets): Currently edit is available for one asset at a time. Delete works for multiple.', 'info');
+    showAssignMultipleAssets(selectedAssetIds);
+}
+
+function showAssignMultipleAssets(assetIds) {
+    if (!assetIds || assetIds.length === 0) return;
+
+    const modal = document.getElementById('detailsModal');
+    const content = document.getElementById('assetDetailsContent');
+    const allAssetNames = assetIds.map(id => {
+        const asset = allAssets.find(a => a._id === id);
+        return asset ? (asset.assetTag + ' - ' + (asset.category || 'Asset')) : 'Asset';
+    }).join('<br>');
+
+    content.innerHTML = '<div class="asset-details-content"><h3>Assign Multiple Assets</h3><p><strong>Selected assets:</strong></p><div style="margin-bottom:16px; color:#334155;">' + allAssetNames + '</div>' +
+        '<form onsubmit="submitBulkAssignForm(event, ' + JSON.stringify(assetIds) + ')">' +
+        '<div class="form-group"><label for="bulkAssignToEmployee">Assigned To *</label><input id="bulkAssignToEmployee" type="text" required placeholder="Staff full name"></div>' +
+        '<div class="form-group"><label for="bulkAssignToDepartment">Department</label><select id="bulkAssignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>' +
+        '<div class="form-group"><label for="bulkAssignDescription">Staff asset description *</label><textarea id="bulkAssignDescription" rows="3" required placeholder="e.g., Laptop + phone + tablet assigned to Jane Doe, all for field operations and meetings"></textarea></div>' +
+        '<div style="display:flex; gap:10px; margin-top:20px;"><button type="submit" class="btn btn-success" style="flex:1;">Assign Selected Assets</button><button type="button" class="btn btn-secondary" onclick="closeDetailsModal()" style="flex:1;">Cancel</button></div></form></div>';
+
+    modal.style.display = 'flex';
+}
+
+async function submitBulkAssignForm(event, assetIds) {
+    event.preventDefault();
+
+    const payload = {
+        assetIds,
+        assignedTo: document.getElementById('bulkAssignToEmployee').value,
+        department: document.getElementById('bulkAssignToDepartment').value,
+        description: document.getElementById('bulkAssignDescription').value,
+    };
+
+    try {
+        await apiCall('/assets/bulk-assign', 'POST', payload);
+        showMessage('assetMessage', 'Assets assigned successfully', 'success');
+        closeDetailsModal();
+        clearSelection();
+        loadAssets();
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
 }
 
 function filterAssets() {
@@ -1714,6 +1905,7 @@ function showAssignForm(assetId) {
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
     formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>';
+    formHTML += '<div class="form-group"><label for="assignDescription">Staff asset description *</label><textarea id="assignDescription" rows="3" required placeholder="e.g., 1 laptop, 1 phone, 1 tablet assigned to Jane Doe for field monitoring"></textarea></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
 }
@@ -1734,6 +1926,7 @@ async function submitAssignForm(event, assetId) {
     const data = {
         assignedTo: document.getElementById('assignToEmployee').value,
         department: document.getElementById('assignToDepartment').value,
+        description: document.getElementById('assignDescription').value,
     };
 
     try {

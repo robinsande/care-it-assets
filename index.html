@@ -491,6 +491,224 @@
         </div>
     </div>
 
+    <!-- Users / Administration Page -->
+    <div id="usersPage" class="page" style="display: none;">
+        <header class="header" id="headerUsers"></header>
+
+        <div class="container">
+            <div class="page-header">
+                <h1>User & Asset Operations</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openUserCreateModal()">Add User</button>
+                </div>
+            </div>
+
+            <div id="usersMessage" class="alert" style="display: none;"></div>
+
+            <div class="grid grid-2">
+                <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                    <h2 style="margin-top: 0;">Create New User / Viewer</h2>
+                    <form id="createUserForm" onsubmit="submitCreateUser(event)">
+                        <div class="form-group">
+                            <label for="newUserName">Full Name *</label>
+                            <input id="newUserName" type="text" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserEmail">Email *</label>
+                            <input id="newUserEmail" type="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserPassword">Password *</label>
+                            <input id="newUserPassword" type="password" minlength="6" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserRole">Role *</label>
+                            <select id="newUserRole" required>
+                                <option value="user">User</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Create User</button>
+                    </form>
+                </div>
+
+                <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                    <h2 style="margin-top: 0;">Returned Asset Not in System</h2>
+                    <form id="returnedAssetForm" onsubmit="submitReturnedAsset(event)">
+                        <div class="form-group">
+                            <label for="returnedDescription">Description *</label>
+                            <input id="returnedDescription" type="text" placeholder="e.g., Dell charger, HP monitor, projector" required>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedCategory">Category</label>
+                                <select id="returnedCategory">
+                                    <option value="Other">Other</option>
+                                    <option value="Laptops">Laptops</option>
+                                    <option value="Mobile Phones">Mobile Phones</option>
+                                    <option value="Monitors">Monitors</option>
+                                    <option value="Projectors">Projectors</option>
+                                    <option value="TV">TV</option>
+                                    <option value="Printers">Printers</option>
+                                    <option value="Copiers">Copiers</option>
+                                    <option value="Network Devices">Network Devices</option>
+                                    <option value="Tablets">Tablets</option>
+                                    <option value="Accessories">Accessories</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedCondition">Condition *</label>
+                                <select id="returnedCondition" required>
+                                    <option value="Good">Good</option>
+                                    <option value="New">New</option>
+                                    <option value="Faulty">Faulty</option>
+                                    <option value="BER">BER</option>
+                                    <option value="Damaged">Damaged</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedBrand">Brand</label>
+                                <input id="returnedBrand" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedModel">Model</label>
+                                <input id="returnedModel" type="text">
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedSerial">Serial Number</label>
+                                <input id="returnedSerial" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedBy">Returned By *</label>
+                                <input id="returnedBy" type="text" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedDepartment">Department</label>
+                                <input id="returnedDepartment" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedLocation">Location</label>
+                                <input id="returnedLocation" type="text">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="returnedNotes">Notes</label>
+                            <textarea id="returnedNotes" rows="3" placeholder="Any details about the item or return reason"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Record Returned Item</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                <h2 style="margin-top: 0;">Issue IT Equipment for Borrow / Staff Use</h2>
+                <form id="issueItemForm" onsubmit="submitIssueItem(event)">
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueItemName">Item Name *</label>
+                            <input id="issueItemName" type="text" placeholder="Laptop, charger, projector, etc." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueCategory">Category</label>
+                            <select id="issueCategory">
+                                <option value="Laptop">Laptop</option>
+                                <option value="Charger">Charger</option>
+                                <option value="Monitor">Monitor</option>
+                                <option value="Projector">Projector</option>
+                                <option value="Printer">Printer</option>
+                                <option value="Router">Router</option>
+                                <option value="Tablet">Tablet</option>
+                                <option value="Phone">Phone</option>
+                                <option value="Accessory">Accessory</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueAssignedTo">Assigned To *</label>
+                            <input id="issueAssignedTo" type="text" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueIssuedBy">Issued By</label>
+                            <input id="issueIssuedBy" type="text" placeholder="Name of staff issuing item">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueDepartment">Department</label>
+                            <input id="issueDepartment" type="text">
+                        </div>
+                        <div class="form-group">
+                            <label for="issueLocation">Location</label>
+                            <input id="issueLocation" type="text">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueCondition">Condition *</label>
+                            <select id="issueCondition" required>
+                                <option value="Good">Good</option>
+                                <option value="New">New</option>
+                                <option value="Faulty">Faulty</option>
+                                <option value="BER">BER</option>
+                                <option value="Damaged">Damaged</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueReturnDueDate">Return Due Date</label>
+                            <input id="issueReturnDueDate" type="date">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueSerialNumber">Serial Number</label>
+                            <input id="issueSerialNumber" type="text">
+                        </div>
+                        <div class="form-group">
+                            <label for="issueDescription">Description</label>
+                            <input id="issueDescription" type="text">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="issueNotes">Notes</label>
+                        <textarea id="issueNotes" rows="3" placeholder="Extra details, borrow purpose, or asset conditions"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Issue IT Item</button>
+                </form>
+            </div>
+
+            <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2 style="margin: 0;">Users</h2>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Assets Page -->
     <div id="assetsPage" class="page" style="display: none;">
         <!-- Header -->
