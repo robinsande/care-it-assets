@@ -1346,11 +1346,22 @@ function createCategoryLostChart(data) {
 function focusAdminSection(elementId) {
     const element = document.getElementById(elementId);
     if (!element) return;
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const section = element.closest('.admin-form-section') || document.getElementById(elementId);
+    document.querySelectorAll('.admin-form-section').forEach(panel => {
+        panel.style.display = panel === section ? 'block' : 'none';
+    });
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (element.tagName === 'FORM') {
         const firstInput = element.querySelector('input, select, textarea');
         if (firstInput) setTimeout(() => firstInput.focus(), 350);
     }
+}
+
+function hideAdminSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) section.style.display = 'none';
 }
 
 async function loadUsers() {
@@ -1418,7 +1429,7 @@ function openUserCreateModal() {
             '<option value="admin">Admin</option>' +
             (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
     }
-    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    focusAdminSection('createUserForm');
     const nameInput = document.getElementById('newUserName');
     if (nameInput) nameInput.focus();
 }

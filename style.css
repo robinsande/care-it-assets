@@ -1214,6 +1214,34 @@ tbody tr:hover {
     line-height: 1.3;
 }
 
+.admin-form-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.admin-form-heading h2 {
+    margin-bottom: 0 !important;
+}
+
+.admin-form-close {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: transparent;
+    color: #64748b;
+    padding: 6px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+}
+
+.admin-form-close:hover {
+    color: #ea580c;
+    border-color: #fdba74;
+}
+
 #usersPage > .container {
     max-width: none;
     width: 100%;
@@ -1739,6 +1767,11 @@ body.dark-mode .admin-summary-card:hover {
     border-color: #6b7280;
 }
 
+body.dark-mode .admin-form-close {
+    border-color: #4b5563;
+    color: #cbd5e1;
+}
+
 body.dark-mode .dashboard-date {
     background: #111827;
     border-color: #374151;
@@ -1776,4 +1809,53 @@ body.dark-mode .alert.success {
 body.dark-mode .alert.error {
     background: #450a0a;
     color: #fecaca;
+}
+
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode small,
+body.dark-mode li,
+body.dark-mode .detail-label,
+body.dark-mode .history-date,
+body.dark-mode .no-data,
+body.dark-mode .availability-pill,
+body.dark-mode .role-label {
+    color: #d1d5db;
+}
+
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6 {
+    color: #f8fafc;
+}
+
+body.dark-mode [style*="color:"] {
+    color: #e5e7eb !important;
+}
+
+body.dark-mode [style*="background:"] {
+    background: #1f2937 !important;
+}
+
+body.dark-mode .badge-green,
+body.dark-mode .badge-yellow,
+body.dark-mode .badge-red,
+body.dark-mode .badge-purple,
+body.dark-mode .badge-darkred,
+body.dark-mode .badge-orange,
+body.dark-mode .badge-gray,
+body.dark-mode .badge-blue {
+    color: #f8fafc;
+}
+
+body.dark-mode .status-badge,
+body.dark-mode .condition-badge {
+    color: #f8fafc !important;
+}
+
+body.dark-mode canvas {
+    filter: brightness(1.08) contrast(0.96);
 }
