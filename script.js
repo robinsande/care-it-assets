@@ -253,7 +253,7 @@ function renderHeader(headerId = 'header') {
 
     let adminLinkHTML = '';
     if (['admin', 'superadmin'].includes(userRole)) {
-        adminLinkHTML = '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Admin Panel</a>';
+        adminLinkHTML = '<a href="#" onclick="switchPage(\'usersPage\'); return false;">Admin Panel</a>';
     }
 
     let headerHTML = '<div class="header-container">';
@@ -330,6 +330,12 @@ async function handleUserLogin(event) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('userRole', response.user.role);
+
+        if (response.user.mustChangePassword) {
+            showMessage('userLoginMessage', 'Temporary password accepted. Please choose a new password.', 'success', 1500);
+            setTimeout(() => switchPage('changePasswordPage'), 1500);
+            return;
+        }
 
         showMessage('userLoginMessage', 'Login successful! Redirecting...', 'success', 1500);
 
@@ -435,6 +441,40 @@ async function handleResetPassword(event) {
         showMessage('resetPasswordMessage', error.message || 'Error resetting password', 'error', 0);
         btn.disabled = false;
         btn.textContent = 'Reset Password';
+    }
+}
+
+async function handleChangePassword(event) {
+    event.preventDefault();
+
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('changeNewPassword').value;
+    const confirmPassword = document.getElementById('changeConfirmPassword').value;
+    const btn = document.getElementById('changePasswordBtn');
+
+    if (newPassword !== confirmPassword) {
+        showMessage('changePasswordMessage', 'Passwords do not match', 'error', 0);
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showMessage('changePasswordMessage', 'Password must be at least 6 characters', 'error', 0);
+        return;
+    }
+
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Changing...';
+        await apiCall('/auth/change-password', 'POST', { currentPassword, newPassword });
+        showMessage('changePasswordMessage', 'Password changed successfully. Redirecting...', 'success', 1500);
+        setTimeout(() => {
+            document.getElementById('changePasswordForm').reset();
+            initializeApp();
+        }, 1500);
+    } catch (error) {
+        showMessage('changePasswordMessage', error.message || 'Error changing password', 'error', 0);
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
     }
 }
 
@@ -1294,14 +1334,37 @@ async function loadUsers() {
 
         tbody.innerHTML = users.map(user => {
             const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
+            const canEditRole = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
+            const canResetPassword = canEditRole;
+            const roleOptions = ['user', 'viewer', 'admin', ...(isSuperAdmin() ? ['superadmin'] : [])]
+                .map(role => '<option value="' + role + '"' + (user.role === role ? ' selected' : '') + '>' + role.charAt(0).toUpperCase() + role.slice(1) + '</option>')
+                .join('');
+            const resetButton = canResetPassword ? '<button class="btn btn-small btn-secondary" onclick="resetUserPassword(\'' + user._id + '\')">Reset Password</button>' : '';
             return '<tr>' +
                 '<td>' + (user.name || '-') + '</td>' +
                 '<td>' + (user.email || '-') + '</td>' +
-                '<td>' + (user.role || 'user') + '</td>' +
+                '<td>' + (canEditRole ? '<select class="user-role-select" data-user-id="' + user._id + '" style="min-width:130px;">' + roleOptions + '</select>' : (user.role || 'user')) + '</td>' +
                 '<td>' + formatDate(user.createdAt) + '</td>' +
-                '<td>' + (canDelete ? '<button class="btn btn-small btn-danger" onclick="deleteUser(\'' + user._id + '\')">Delete</button>' : '<span style="color:#94a3b8;">Protected</span>') + '</td>' +
+                '<td>' + resetButton + ' ' + (canDelete ? '<button class="btn btn-small btn-danger" onclick="deleteUser(\'' + user._id + '\')">Delete</button>' : '<span style="color:#94a3b8;">Protected</span>') + '</td>' +
                 '</tr>';
         }).join('');
+
+        document.querySelectorAll('.user-role-select').forEach(select => {
+            select.addEventListener('change', async (event) => {
+                const userId = event.target.dataset.userId;
+                const newRole = event.target.value;
+                if (!userId || !newRole) return;
+
+                try {
+                    await apiCall('/users/' + userId, 'PUT', { role: newRole });
+                    showMessage('usersMessage', 'User role updated successfully', 'success');
+                    loadUsers();
+                } catch (error) {
+                    showMessage('usersMessage', error.message || 'Error updating user role', 'error', 0);
+                    loadUsers();
+                }
+            });
+        });
     } catch (error) {
         showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
     }
@@ -1361,6 +1424,22 @@ async function deleteUser(userId) {
         loadUsers();
     } catch (error) {
         showMessage('usersMessage', error.message || 'Error deleting user', 'error', 0);
+    }
+}
+
+async function resetUserPassword(userId) {
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can reset passwords', 'error');
+        return;
+    }
+
+    if (!confirm('Generate a temporary password for this user? Their current password will stop working.')) return;
+
+    try {
+        const response = await apiCall('/users/' + userId + '/reset-password', 'POST');
+        showMessage('usersMessage', 'Temporary password: <strong>' + response.temporaryPassword + '</strong><br>Give it to the user securely. They must change it after signing in.', 'success', 0);
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error resetting user password', 'error', 0);
     }
 }
 
@@ -1625,7 +1704,8 @@ function showAssignMultipleAssets(assetIds) {
         '<form onsubmit="submitBulkAssignForm(event, ' + JSON.stringify(assetIds) + ')">' +
         '<div class="form-group"><label for="bulkAssignToEmployee">Assigned To *</label><input id="bulkAssignToEmployee" type="text" required placeholder="Staff full name"></div>' +
         '<div class="form-group"><label for="bulkAssignToDepartment">Department</label><select id="bulkAssignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>' +
-        '<div class="form-group"><label for="bulkAssignDescription">Staff asset description *</label><textarea id="bulkAssignDescription" rows="3" required placeholder="e.g., Laptop + phone + tablet assigned to Jane Doe, all for field operations and meetings"></textarea></div>' +
+        '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Laptop"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Phone"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Tablet"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Projector"> Projector</label></div></div>' +
+        '<div class="form-group"><label for="bulkAssignDescription">Staff asset description (Optional)</label><textarea id="bulkAssignDescription" rows="3" placeholder="Optional: e.g., Laptop + phone + tablet assigned to Jane Doe for field work"></textarea></div>' +
         '<div style="display:flex; gap:10px; margin-top:20px;"><button type="submit" class="btn btn-success" style="flex:1;">Assign Selected Assets</button><button type="button" class="btn btn-secondary" onclick="closeDetailsModal()" style="flex:1;">Cancel</button></div></form></div>';
 
     modal.style.display = 'flex';
@@ -1634,10 +1714,12 @@ function showAssignMultipleAssets(assetIds) {
 async function submitBulkAssignForm(event, assetIds) {
     event.preventDefault();
 
+    const selectedBulkBundle = Array.from(document.querySelectorAll('.bulk-asset-select:checked')).map(el => el.value);
     const payload = {
         assetIds,
         assignedTo: document.getElementById('bulkAssignToEmployee').value,
         department: document.getElementById('bulkAssignToDepartment').value,
+        assignedItems: selectedBulkBundle,
         description: document.getElementById('bulkAssignDescription').value,
     };
 
@@ -1743,6 +1825,9 @@ async function submitAssetForm(event) {
     }
 
     const category = document.getElementById('category').value;
+    const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
+    const assignmentDetails = document.getElementById('assignmentDetails')?.value || '';
+
     const formData = {
         assetTag: document.getElementById('assetTag').value,
         category: category,
@@ -1756,6 +1841,8 @@ async function submitAssetForm(event) {
         assignedTo: document.getElementById('assignedTo').value,
         department: document.getElementById('department').value,
         location: document.getElementById('location').value,
+        assignedItems: selectedBundle,
+        assignmentDetails: assignmentDetails,
     };
     if (category === 'Laptops') {
         const gen = document.getElementById('generation').value;
@@ -1905,7 +1992,8 @@ function showAssignForm(assetId) {
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
     formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>';
-    formHTML += '<div class="form-group"><label for="assignDescription">Staff asset description *</label><textarea id="assignDescription" rows="3" required placeholder="e.g., 1 laptop, 1 phone, 1 tablet assigned to Jane Doe for field monitoring"></textarea></div>';
+    formHTML += '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Laptop"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Phone"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Tablet"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Projector"> Projector</label></div></div>';
+    formHTML += '<div class="form-group"><label for="assignDescription">Staff asset description (Optional)</label><textarea id="assignDescription" rows="3" placeholder="Optional: e.g., laptop + phone + tablet issued for field monitoring"></textarea></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
 }
@@ -1923,9 +2011,11 @@ function showReturnForm(assetId) {
 async function submitAssignForm(event, assetId) {
     event.preventDefault();
 
+    const selectedBundle = Array.from(document.querySelectorAll('.single-asset-select:checked')).map(el => el.value);
     const data = {
         assignedTo: document.getElementById('assignToEmployee').value,
         department: document.getElementById('assignToDepartment').value,
+        assignedItems: selectedBundle,
         description: document.getElementById('assignDescription').value,
     };
 

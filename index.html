@@ -141,6 +141,27 @@
         </div>
     </div>
 
+    <!-- Required Password Change Page -->
+    <div id="changePasswordPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">Change Password</h1>
+                <p class="auth-subtitle">Your temporary password must be replaced before continuing.</p>
+                <div id="changePasswordMessage" class="alert" style="display: none;"></div>
+                <form id="changePasswordForm" class="auth-form" onsubmit="handleChangePassword(event)">
+                    <label for="currentPassword">Temporary Password</label>
+                    <input id="currentPassword" type="password" placeholder="Enter your temporary password" required>
+                    <label for="changeNewPassword">New Password</label>
+                    <input id="changeNewPassword" type="password" placeholder="Enter your new password" required minlength="6">
+                    <label for="changeConfirmPassword">Confirm New Password</label>
+                    <input id="changeConfirmPassword" type="password" placeholder="Confirm your new password" required minlength="6">
+                    <button type="submit" class="btn btn-primary" id="changePasswordBtn" style="width: 100%;">Change Password</button>
+                </form>
+                <p class="auth-footer"><a href="#" class="auth-link" onclick="logout(); return false;">Sign out</a></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Register Page -->
     <div id="registerPage" class="page" style="display: none;">
         <div class="auth-container">
@@ -952,6 +973,23 @@
                     <div class="form-group">
                         <label for="assignedTo">Assigned To</label>
                         <input id="assignedTo" type="text" placeholder="Employee name">
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Assigned Device Bundle (Optional)</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Laptop"> Laptop</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Phone"> Phone</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Tablet"> Tablet</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Monitor"> Monitor</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Charger"> Charger</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Projector"> Projector</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label for="assignmentDetails">Staff Assets Description (Optional)</label>
+                        <textarea id="assignmentDetails" rows="3" placeholder="Example: Laptop, tablet and phone assigned to Jane Doe for field monitoring work"></textarea>
                     </div>
 
                     <div class="form-group">
