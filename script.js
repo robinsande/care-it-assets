@@ -15,6 +15,25 @@ let departmentChart = null;
 let resetEmail = null; // For password reset flow
 let selectedAssetIds = [];
 
+function isDarkMode() {
+    return localStorage.getItem('careit_dark_mode') === 'true';
+}
+
+function applyTheme() {
+    document.body.classList.toggle('dark-mode', isDarkMode());
+}
+
+function toggleDarkMode() {
+    localStorage.setItem('careit_dark_mode', String(!isDarkMode()));
+    applyTheme();
+    document.querySelectorAll('.theme-toggle').forEach(button => {
+        button.textContent = isDarkMode() ? '☀ Light' : '◐ Dark';
+        button.setAttribute('aria-pressed', String(isDarkMode()));
+    });
+}
+
+applyTheme();
+
 function animateCount(elementId, target, duration = 900) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -218,6 +237,8 @@ function switchPage(pageId, options = {}) {
         loadAssets();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
+        const adminDate = document.getElementById('adminPanelDate');
+        if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         loadUsers();
     } else if (pageId === 'reportsPage') {
         renderHeader('headerReports');
@@ -271,6 +292,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<span>' + (user?.email || '') + '</span>';
     headerHTML += '<span class="role-label">' + (userRole === 'superadmin' ? 'Super Admin' : userRole === 'admin' ? 'Admin' : userRole === 'viewer' ? 'Viewer' : 'User') + '</span>';
     headerHTML += '</div>';
+    headerHTML += '<button class="theme-toggle" type="button" onclick="toggleDarkMode()" aria-label="Toggle dark mode" aria-pressed="' + isDarkMode() + '">' + (isDarkMode() ? '☀ Light' : '◐ Dark') + '</button>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button>';
     headerHTML += '</div>';
     headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu()">Menu</button>';
@@ -1321,6 +1343,16 @@ function createCategoryLostChart(data) {
 // ========================================
 // USERS / ADMIN FUNCTIONS
 // ========================================
+function focusAdminSection(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (element.tagName === 'FORM') {
+        const firstInput = element.querySelector('input, select, textarea');
+        if (firstInput) setTimeout(() => firstInput.focus(), 350);
+    }
+}
+
 async function loadUsers() {
     try {
         const users = await apiCall('/users', 'GET');
@@ -1328,9 +1360,14 @@ async function loadUsers() {
         if (!tbody) return;
 
         if (!users || !users.length) {
+            const count = document.getElementById('adminUserCount');
+            if (count) count.textContent = '0';
             tbody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
             return;
         }
+
+        const count = document.getElementById('adminUserCount');
+        if (count) count.textContent = users.length;
 
         tbody.innerHTML = users.map(user => {
             const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
@@ -1704,7 +1741,7 @@ function showAssignMultipleAssets(assetIds) {
         '<form onsubmit="submitBulkAssignForm(event, ' + JSON.stringify(assetIds) + ')">' +
         '<div class="form-group"><label for="bulkAssignToEmployee">Assigned To *</label><input id="bulkAssignToEmployee" type="text" required placeholder="Staff full name"></div>' +
         '<div class="form-group"><label for="bulkAssignToDepartment">Department</label><select id="bulkAssignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>' +
-        '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Laptop"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Phone"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Tablet"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Projector"> Projector</label></div></div>' +
+        '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Laptop" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Phone" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Tablet" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Projector"> Projector</label></div><div id="bulkAssignmentItemDetails"></div></div>' +
         '<div class="form-group"><label for="bulkAssignDescription">Staff asset description (Optional)</label><textarea id="bulkAssignDescription" rows="3" placeholder="Optional: e.g., Laptop + phone + tablet assigned to Jane Doe for field work"></textarea></div>' +
         '<div style="display:flex; gap:10px; margin-top:20px;"><button type="submit" class="btn btn-success" style="flex:1;">Assign Selected Assets</button><button type="button" class="btn btn-secondary" onclick="closeDetailsModal()" style="flex:1;">Cancel</button></div></form></div>';
 
@@ -1715,11 +1752,13 @@ async function submitBulkAssignForm(event, assetIds) {
     event.preventDefault();
 
     const selectedBulkBundle = Array.from(document.querySelectorAll('.bulk-asset-select:checked')).map(el => el.value);
+    const bulkItemDetails = collectAssignmentItemDetails('bulkAssignmentItemDetails');
     const payload = {
         assetIds,
         assignedTo: document.getElementById('bulkAssignToEmployee').value,
         department: document.getElementById('bulkAssignToDepartment').value,
         assignedItems: selectedBulkBundle,
+        assignmentItemDetails: bulkItemDetails,
         description: document.getElementById('bulkAssignDescription').value,
     };
 
@@ -1785,6 +1824,39 @@ function clearAssetFilters() {
     filterAssets();
 }
 
+function renderAssignmentItemDetails(selector, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const selectedTypes = Array.from(document.querySelectorAll('.' + selector + ':checked')).map(input => input.value);
+    container.innerHTML = selectedTypes.map(type => {
+        const key = type.toLowerCase();
+        const laptopFields = type === 'Laptop' ?
+            '<div class="grid grid-2"><div class="form-group"><label>Generation</label><input data-assignment-type="' + key + '" data-assignment-field="generation" type="text" placeholder="e.g., 12th Gen"></div><div class="form-group"><label>Processor</label><input data-assignment-type="' + key + '" data-assignment-field="processor" type="text" placeholder="e.g., Intel Core i5"></div><div class="form-group"><label>RAM</label><input data-assignment-type="' + key + '" data-assignment-field="ram" type="text" placeholder="e.g., 16GB"></div><div class="form-group"><label>SSD</label><input data-assignment-type="' + key + '" data-assignment-field="ssd" type="text" placeholder="e.g., 512GB"></div></div>' : '';
+        const mobileFields = ['Phone', 'Tablet'].includes(type) ?
+            '<div class="form-group"><label>IMEI / Identifier</label><input data-assignment-type="' + key + '" data-assignment-field="imei" type="text" placeholder="IMEI or device identifier"></div>' : '';
+        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
+    }).join('');
+}
+
+function collectAssignmentItemDetails(containerId) {
+    const details = {};
+    const container = document.getElementById(containerId);
+    if (!container) return details;
+
+    container.querySelectorAll('[data-assignment-type][data-assignment-field]').forEach(input => {
+        const type = input.dataset.assignmentType;
+        const field = input.dataset.assignmentField;
+        if (!details[type]) details[type] = {};
+        if (input.value.trim()) details[type][field] = input.value.trim();
+    });
+
+    Object.keys(details).forEach(type => {
+        if (Object.keys(details[type]).length === 0) delete details[type];
+    });
+    return details;
+}
+
 function setLaptopSpecsVisibility(category) {
     const wrap = document.querySelector('[data-laptop-specs]');
     if (!wrap) return;
@@ -1807,6 +1879,7 @@ function openAssetModal() {
     document.getElementById('assetForm').reset();
     document.getElementById('assetModalTitle').textContent = 'Add New Asset';
     document.getElementById('assetTag').disabled = false;
+    document.getElementById('assetAssignmentItemDetails').innerHTML = '';
     setLaptopSpecsVisibility('');
     document.getElementById('assetModal').style.display = 'flex';
 }
@@ -1827,6 +1900,7 @@ async function submitAssetForm(event) {
     const category = document.getElementById('category').value;
     const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
     const assignmentDetails = document.getElementById('assignmentDetails')?.value || '';
+    const assignmentItemDetails = collectAssignmentItemDetails('assetAssignmentItemDetails');
 
     const formData = {
         assetTag: document.getElementById('assetTag').value,
@@ -1843,6 +1917,7 @@ async function submitAssetForm(event) {
         location: document.getElementById('location').value,
         assignedItems: selectedBundle,
         assignmentDetails: assignmentDetails,
+        assignmentItemDetails: assignmentItemDetails,
     };
     if (category === 'Laptops') {
         const gen = document.getElementById('generation').value;
@@ -1992,7 +2067,7 @@ function showAssignForm(assetId) {
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
     formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>';
-    formHTML += '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Laptop"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Phone"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Tablet"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Projector"> Projector</label></div></div>';
+    formHTML += '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Laptop" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Phone" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Tablet" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Projector"> Projector</label></div><div id="singleAssignmentItemDetails"></div></div>';
     formHTML += '<div class="form-group"><label for="assignDescription">Staff asset description (Optional)</label><textarea id="assignDescription" rows="3" placeholder="Optional: e.g., laptop + phone + tablet issued for field monitoring"></textarea></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
@@ -2012,10 +2087,12 @@ async function submitAssignForm(event, assetId) {
     event.preventDefault();
 
     const selectedBundle = Array.from(document.querySelectorAll('.single-asset-select:checked')).map(el => el.value);
+    const itemDetails = collectAssignmentItemDetails('singleAssignmentItemDetails');
     const data = {
         assignedTo: document.getElementById('assignToEmployee').value,
         department: document.getElementById('assignToDepartment').value,
         assignedItems: selectedBundle,
+        assignmentItemDetails: itemDetails,
         description: document.getElementById('assignDescription').value,
     };
 

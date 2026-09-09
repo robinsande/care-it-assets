@@ -517,6 +517,41 @@
         <header class="header" id="headerUsers"></header>
 
         <div class="container">
+            <section class="admin-landing" aria-labelledby="adminLandingTitle">
+                <div class="admin-landing-copy">
+                    <div>
+                        <span class="admin-kicker">CONTROL CENTRE</span>
+                        <h1 id="adminLandingTitle">Administration Panel</h1>
+                        <p>Manage access, returned equipment, and staff-issued IT items from one workspace.</p>
+                    </div>
+                    <div class="admin-landing-date"><span id="adminPanelDate"></span></div>
+                </div>
+                <div class="admin-quick-actions">
+                    <button class="btn btn-primary" onclick="focusAdminSection('createUserForm')">+ Add User</button>
+                    <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
+                    <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
+                </div>
+            </section>
+
+            <div class="admin-summary-grid">
+                <button class="admin-summary-card admin-summary-users" onclick="focusAdminSection('usersTableBody')">
+                    <span class="admin-summary-icon">&#9673;</span>
+                    <span><strong id="adminUserCount">0</strong><small>Registered Users</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-returns" onclick="focusAdminSection('returnedAssetForm')">
+                    <span class="admin-summary-icon">&#8634;</span>
+                    <span><strong>Returns</strong><small>Record unregistered assets</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-issues" onclick="focusAdminSection('issueItemForm')">
+                    <span class="admin-summary-icon">&#8599;</span>
+                    <span><strong>Issue Desk</strong><small>Borrow and staff equipment</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('createUserForm')">
+                    <span class="admin-summary-icon">&#10003;</span>
+                    <span><strong>Access Control</strong><small>Roles and passwords</small></span>
+                </button>
+            </div>
+
             <div class="page-header">
                 <h1>User & Asset Operations</h1>
                 <div class="header-actions">
@@ -978,14 +1013,16 @@
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Assigned Device Bundle (Optional)</label>
                         <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
-                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Laptop"> Laptop</label>
-                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Phone"> Phone</label>
-                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Tablet"> Tablet</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Laptop" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Laptop</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Phone" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Phone</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Tablet" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Tablet</label>
                             <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Monitor"> Monitor</label>
                             <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Charger"> Charger</label>
                             <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Projector"> Projector</label>
                         </div>
                     </div>
+
+                    <div id="assetAssignmentItemDetails" style="grid-column: 1 / -1;"></div>
 
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label for="assignmentDetails">Staff Assets Description (Optional)</label>
