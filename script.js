@@ -21,11 +21,16 @@ function isDarkMode() {
 
 function applyTheme() {
     document.body.classList.toggle('dark-mode', isDarkMode());
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = isDarkMode() ? '#e5e7eb' : '#334155';
+        Chart.defaults.borderColor = isDarkMode() ? '#475569' : '#e5e7eb';
+    }
 }
 
 function toggleDarkMode() {
     localStorage.setItem('careit_dark_mode', String(!isDarkMode()));
     applyTheme();
+    updateDashboardChartTheme();
     document.querySelectorAll('.theme-toggle').forEach(button => {
         button.textContent = isDarkMode() ? '☀ Light' : '◐ Dark';
         button.setAttribute('aria-pressed', String(isDarkMode()));
@@ -1118,7 +1123,7 @@ function createLocationChart(data) {
                 x: {
                     beginAtZero: true,
                     grid: {
-                        color: '#f3f4f6'
+                        color: isDarkMode() ? '#475569' : '#f3f4f6'
                     }
                 },
                 y: {
@@ -1173,7 +1178,7 @@ function createDepartmentChart(data) {
                 x: {
                     beginAtZero: true,
                     grid: {
-                        color: '#f3f4f6'
+                        color: isDarkMode() ? '#475569' : '#f3f4f6'
                     }
                 },
                 y: {
@@ -1260,7 +1265,7 @@ function createCategoryGoodChart(data) {
                 drillDownToAssets({ category: label, condition: 'Good' });
             },
             scales: {
-                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                x: { beginAtZero: true, grid: { color: isDarkMode() ? '#475569' : '#f3f4f6' }, ticks: { precision: 0 } },
                 y: { grid: { display: false } }
             },
             plugins: { legend: { display: false } }
@@ -1296,7 +1301,7 @@ function createCategoryFaultyChart(data) {
                 drillDownToAssets({ category: label, condition: 'Faulty' });
             },
             scales: {
-                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                x: { beginAtZero: true, grid: { color: isDarkMode() ? '#475569' : '#f3f4f6' }, ticks: { precision: 0 } },
                 y: { grid: { display: false } }
             },
             plugins: { legend: { display: false } }
@@ -1337,6 +1342,12 @@ function createCategoryLostChart(data) {
             },
             plugins: { legend: { display: false } }
         }
+    });
+}
+
+function updateDashboardChartTheme() {
+    [statusChart, locationChart, departmentChart, categoryAllChart, categoryGoodChart, categoryFaultyChart, categoryLostChart].forEach(chart => {
+        if (chart) chart.update('none');
     });
 }
 

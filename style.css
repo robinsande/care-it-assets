@@ -1859,3 +1859,40 @@ body.dark-mode .condition-badge {
 body.dark-mode canvas {
     filter: brightness(1.08) contrast(0.96);
 }
+
+body.dark-mode #dashboardPage .chart-card h2,
+body.dark-mode #dashboardPage .stats-table h2,
+body.dark-mode #dashboardPage .chart-card-header h2,
+body.dark-mode #dashboardPage .stats-table .chart-card-header h2 {
+    color: #f8fafc !important;
+}
+
+body.dark-mode #dashboardPage .stats-table thead th,
+body.dark-mode #dashboardPage .stats-table tbody td,
+body.dark-mode #dashboardPage .stats-table tbody td strong,
+body.dark-mode #dashboardPage .stats-table tbody td span,
+body.dark-mode #dashboardPage .dashboard-filter-preview td,
+body.dark-mode #dashboardPage .dashboard-filter-preview th {
+    color: #e5e7eb !important;
+}
+
+body.dark-mode #dashboardPage .stat-content h3,
+body.dark-mode #dashboardPage .stat-value,
+body.dark-mode #dashboardPage .dashboard-title-group h1,
+body.dark-mode #dashboardPage .dashboard-date,
+body.dark-mode #dashboardPage .dashboard-date span,
+body.dark-mode #dashboardPage .availability-pill {
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc;
+}
+
+body.dark-mode #dashboardPage .filters,
+body.dark-mode #dashboardPage .filters select,
+body.dark-mode #dashboardPage .filters .search-box {
+    color: #f8fafc;
+}
+
+body.dark-mode #dashboardPage .filters select option {
+    background: #111827;
+    color: #f8fafc;
+}
