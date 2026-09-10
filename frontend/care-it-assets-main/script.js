@@ -11,7 +11,50 @@ let allAssets = [];
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
+let departmentChart = null;
 let resetEmail = null; // For password reset flow
+let selectedAssetIds = [];
+
+function isDarkMode() {
+    return localStorage.getItem('careit_dark_mode') === 'true';
+}
+
+function applyTheme() {
+    document.body.classList.toggle('dark-mode', isDarkMode());
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = isDarkMode() ? '#e5e7eb' : '#334155';
+        Chart.defaults.borderColor = isDarkMode() ? '#475569' : '#e5e7eb';
+    }
+}
+
+function toggleDarkMode() {
+    localStorage.setItem('careit_dark_mode', String(!isDarkMode()));
+    applyTheme();
+    updateDashboardChartTheme();
+    document.querySelectorAll('.theme-toggle').forEach(button => {
+        button.textContent = isDarkMode() ? '☀ Light' : '◐ Dark';
+        button.setAttribute('aria-pressed', String(isDarkMode()));
+    });
+}
+
+applyTheme();
+
+function animateCount(elementId, target, duration = 900) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const start = 0;
+    const startTime = performance.now();
+    function step(now) {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const current = Math.floor(start + (target - start) * eased);
+        el.textContent = current;
+        if (t < 1) requestAnimationFrame(step);
+        else el.textContent = target;
+    }
+    requestAnimationFrame(step);
+}
 
 // ========================================
 // API CALL HELPER
@@ -113,16 +156,15 @@ function formatCurrency(amount) {
 }
 
 function getStatusBadgeClass(status) {
-    const map = {
-        'Available': 'badge-green',
-        'Assigned': 'badge-blue',
-        'In Storage': 'badge-yellow',
-        'Under Repair': 'badge-red',
-        'Lost': 'badge-red',
-        'Aproved for disposal': 'badge-red',
-        'Disposed': 'badge-red',
-    };
-    return map[status] || 'badge-blue';
+    const s = (status || '').toString().toLowerCase().trim();
+    if (s.startsWith('available')) return 'badge-green';
+    if (s.startsWith('assigned') || s.includes('in use')) return 'badge-blue';
+    if (s.includes('in storage') || s.includes('in stock') || s === 'stored' || s === 'storage') return 'badge-yellow';
+    if (s.includes('under repair') || s.includes('repairing') || s.includes('in repair') || s.includes('can be fixed') || s.includes('faulty') || s.includes('damaged')) return 'badge-purple';
+    if (s === 'lost') return 'badge-darkred';
+    if (s.includes('approved') || s.includes('disposal')) return 'badge-orange';
+    if (s.includes('disposed') || s === 'dispose') return 'badge-gray';
+    return 'badge-blue';
 }
 
 function formatDate(dateString) {
@@ -149,7 +191,11 @@ function getUserRole() {
 }
 
 function isAdmin() {
-    return getUserRole() === 'admin';
+    return ['admin', 'superadmin'].includes(getUserRole());
+}
+
+function isSuperAdmin() {
+    return getUserRole() === 'superadmin';
 }
 
 function logout() {
@@ -173,7 +219,7 @@ function downloadFile(blob, filename) {
 // ========================================
 // PAGE NAVIGATION
 // ========================================
-function switchPage(pageId) {
+function switchPage(pageId, options = {}) {
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
     });
@@ -181,23 +227,42 @@ function switchPage(pageId) {
     const page = document.getElementById(pageId);
     if (page) {
         page.style.display = 'block';
+    }
 
-        if (pageId === 'dashboardPage') {
-            renderHeader('header');
-            loadDashboardData();
-        } else if (pageId === 'assetsPage') {
-            renderHeader('headerAssets');
-            renderHeaderActions();
-            loadAssets();
-        }
+    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
+        try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
+    }
+
+    if (pageId === 'dashboardPage') {
+        renderHeader('header');
+        loadDashboardData();
+    } else if (pageId === 'assetsPage') {
+        renderHeader('headerAssets');
+        renderHeaderActions();
+        loadAssets();
+    } else if (pageId === 'usersPage') {
+        renderHeader('headerUsers');
+        const adminDate = document.getElementById('adminPanelDate');
+        if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+        loadUsers();
+    } else if (pageId === 'reportsPage') {
+        renderHeader('headerReports');
+        loadReports();
     }
 }
 
 function initializeApp() {
     if (isAuthenticated()) {
-        switchPage('dashboardPage');
+        let savedPage = null;
+        try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
+        const validPages = ['dashboardPage', 'assetsPage', 'usersPage', 'reportsPage'];
+        if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
+            switchPage(savedPage);
+        } else {
+            switchPage('dashboardPage');
+        }
     } else {
-        switchPage('userLoginPage');
+        switchPage('userLoginPage', { skipSave: true });
     }
 }
 
@@ -210,11 +275,11 @@ function renderHeader(headerId = 'header') {
 
     const user = getUser();
     const userRole = getUserRole();
-    const roleDisplay = userRole === 'admin' ? 'ADMIN' : 'USER';
+    const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
 
     let adminLinkHTML = '';
-    if (userRole === 'admin') {
-        adminLinkHTML = '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Admin Panel</a>';
+    if (['admin', 'superadmin'].includes(userRole)) {
+        adminLinkHTML = '<a href="#" onclick="switchPage(\'usersPage\'); return false;">Admin Panel</a>';
     }
 
     let headerHTML = '<div class="header-container">';
@@ -230,8 +295,9 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<div class="header-right">';
     headerHTML += '<div class="user-info">';
     headerHTML += '<span>' + (user?.email || '') + '</span>';
-    headerHTML += '<span class="role-label">' + (userRole === 'admin' ? 'Admin' : 'User') + '</span>';
+    headerHTML += '<span class="role-label">' + (userRole === 'superadmin' ? 'Super Admin' : userRole === 'admin' ? 'Admin' : userRole === 'viewer' ? 'Viewer' : 'User') + '</span>';
     headerHTML += '</div>';
+    headerHTML += '<button class="theme-toggle" type="button" onclick="toggleDarkMode()" aria-label="Toggle dark mode" aria-pressed="' + isDarkMode() + '">' + (isDarkMode() ? '☀ Light' : '◐ Dark') + '</button>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button>';
     headerHTML += '</div>';
     headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu()">Menu</button>';
@@ -247,9 +313,10 @@ function renderHeaderActions() {
     const userRole = getUserRole();
     let actionsHTML = '';
 
-    if (userRole === 'admin') {
+    if (['admin', 'superadmin'].includes(userRole)) {
         actionsHTML = '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel</button>';
+        actionsHTML += '<button class="btn btn-secondary" onclick="switchPage(\'usersPage\')">Users / Ops</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     } else {
@@ -290,6 +357,12 @@ async function handleUserLogin(event) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('userRole', response.user.role);
+
+        if (response.user.mustChangePassword) {
+            showMessage('userLoginMessage', 'Temporary password accepted. Please choose a new password.', 'success', 1500);
+            setTimeout(() => switchPage('changePasswordPage'), 1500);
+            return;
+        }
 
         showMessage('userLoginMessage', 'Login successful! Redirecting...', 'success', 1500);
 
@@ -398,6 +471,40 @@ async function handleResetPassword(event) {
     }
 }
 
+async function handleChangePassword(event) {
+    event.preventDefault();
+
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('changeNewPassword').value;
+    const confirmPassword = document.getElementById('changeConfirmPassword').value;
+    const btn = document.getElementById('changePasswordBtn');
+
+    if (newPassword !== confirmPassword) {
+        showMessage('changePasswordMessage', 'Passwords do not match', 'error', 0);
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showMessage('changePasswordMessage', 'Password must be at least 6 characters', 'error', 0);
+        return;
+    }
+
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Changing...';
+        await apiCall('/auth/change-password', 'POST', { currentPassword, newPassword });
+        showMessage('changePasswordMessage', 'Password changed successfully. Redirecting...', 'success', 1500);
+        setTimeout(() => {
+            document.getElementById('changePasswordForm').reset();
+            initializeApp();
+        }, 1500);
+    } catch (error) {
+        showMessage('changePasswordMessage', error.message || 'Error changing password', 'error', 0);
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
+    }
+}
+
 async function handleRegister(event) {
     event.preventDefault();
 
@@ -427,43 +534,515 @@ async function handleRegister(event) {
 // ========================================
 // DASHBOARD FUNCTIONS
 // ========================================
+const ISSUABLE_STATUSES = ["Available", "In Storage"];
+
+function setAvailabilityPill(pillId, available, total) {
+    const pill = document.getElementById(pillId);
+    if (!pill) return;
+    const av = Number(available || 0);
+    const tot = Number(total || 0);
+    const pct = tot > 0 ? Math.round((av / tot) * 100) : 0;
+    pill.textContent = av + ' issuable of ' + tot + ' (' + pct + '%)';
+    pill.classList.toggle('zero', av === 0);
+}
+
 async function loadDashboardData() {
     try {
-        const [statusData, locationData, assetsData] = await Promise.all([
+        // Set dashboard date
+        const dateEl = document.querySelector('#dashboardDate span');
+        if (dateEl) {
+            dateEl.textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryGood, categoryLost,
+            availTotals, availByCat, availByDept, availByLoc, availByStatus, availByCondition
+        ] = await Promise.all([
             apiCall('/dashboard/status', 'GET'),
             apiCall('/dashboard/location', 'GET'),
+            apiCall('/dashboard/department', 'GET'),
             apiCall('/assets', 'GET'),
+            apiCall('/dashboard/category', 'GET'),
+            apiCall('/dashboard/category/faulty', 'GET'),
+            apiCall('/dashboard/category/good', 'GET'),
+            apiCall('/dashboard/category/lost', 'GET'),
+            apiCall('/dashboard/available/total', 'GET'),
+            apiCall('/dashboard/available/category', 'GET'),
+            apiCall('/dashboard/available/department', 'GET'),
+            apiCall('/dashboard/available/location', 'GET'),
+            apiCall('/dashboard/available/status', 'GET'),
+            apiCall('/dashboard/available/condition', 'GET')
         ]);
 
-        document.getElementById('totalAssets').textContent = assetsData.length;
-        const availableCount = statusData.find(s => s._id === 'Available')?.count || 0;
-        const assignedCount = statusData.find(s => s._id === 'Assigned')?.count || 0;
-        
-        document.getElementById('availableAssets').textContent = availableCount;
-        document.getElementById('assignedAssets').textContent = assignedCount;
+        window.__dashboardAllAssets = assetsData;
 
+        function statCounts(arr) {
+            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, issuable: 0, disposed: 0, approved: 0, unknown: 0 };
+            const unkCounts = {};
+            arr.forEach(a => {
+                const sraw = (a.status || '').toString().trim();
+                const s = sraw.toLowerCase();
+                if (s === 'available') { c.available++; c.issuable++; }
+                else if (s === 'assigned') c.assigned++;
+                else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') { c.inStorage++; c.issuable++; }
+                else if (s === 'under repair' || s === 'repairing' || s === 'in repair') c.underRepair++;
+                else if (s === 'lost') c.lost++;
+                else if (s.includes('disposed') || s === 'dispose') c.disposed++;
+                else if (s.includes('disposal') || s.includes('approve') && s.includes('disposal')) c.approved++;
+                else { c.unknown++; unkCounts[sraw || '(empty string)'] = (unkCounts[sraw || '(empty string)'] || 0) + 1; }
+            });
+            c.__unknownBreakdown = Object.entries(unkCounts).sort((a, b) => b[1] - a[1]);
+            return c;
+        }
+        const counts = statCounts(assetsData);
+        const totalCount = counts.total;
+        const availableCount = counts.available;
+        const assignedCount = counts.assigned;
+        const storageCount = counts.inStorage;
+        const repairCount = counts.underRepair;
+        const lostCount = counts.lost;
+        const issuableCount = counts.issuable;
+
+        // ---- Extra stats cards for Disposed / Approved For Disposal if present ----
+        const disposedCount = counts.disposed || 0;
+        const approvedCount = counts.approved || 0;
+        const unclassifiedCount = counts.unknown || 0;
+        (function syncExtraStatCards() {
+            const disp = document.getElementById('disposedAssets');
+            if (disp && disposedCount > 0) {
+                const card = disp.closest('.stat-card');
+                if (card) {
+                    card.style.display = '';
+                    disp.textContent = disposedCount;
+                    animateCount('disposedAssets', disposedCount);
+                }
+            } else if (disp) {
+                const card = disp.closest('.stat-card');
+                if (card) card.style.display = 'none';
+            }
+            const appr = document.getElementById('approvedAssets');
+            if (appr && approvedCount > 0) {
+                const card = appr.closest('.stat-card');
+                if (card) {
+                    card.style.display = '';
+                    appr.textContent = approvedCount;
+                    animateCount('approvedAssets', approvedCount);
+                }
+            } else if (appr) {
+                const card = appr.closest('.stat-card');
+                if (card) card.style.display = 'none';
+            }
+        })();
+
+        const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setStat('totalAssets', totalCount);
+        setStat('availableAssets', availableCount);
+        setStat('assignedAssets', assignedCount);
+        setStat('storageAssets', storageCount);
+        setStat('repairAssets', repairCount);
+        setStat('lostAssets', lostCount);
+        animateCount('totalAssets', totalCount);
+        animateCount('availableAssets', availableCount);
+        animateCount('assignedAssets', assignedCount);
+        animateCount('storageAssets', storageCount);
+        animateCount('repairAssets', repairCount);
+        animateCount('lostAssets', lostCount);
+
+        const normStatus = s => (s || '').toString().trim().toLowerCase();
+        const isIssuable = a => { const s = normStatus(a.status); return s === 'available' || s === 'in storage'; };
+        const normCond = c => (c || '').toString().trim().toLowerCase();
+        const isGood = a => { const c = normCond(a.condition); return c === 'good' || c === 'new'; };
+        const isFaulty = a => { const c = normCond(a.condition); return c === 'faulty' || c === 'damaged'; };
+        const isLost = a => normStatus(a.status) === 'lost';
+
+        function groupByField(arr, field, extraFilter) {
+            const map = {};
+            arr.forEach(a => {
+                if (extraFilter && !extraFilter(a)) return;
+                const key = a[field] || (field === 'department' ? 'Unassigned' : 'Unknown');
+                map[key] = (map[key] || 0) + 1;
+            });
+            return Object.entries(map).map(([k, v]) => ({ _id: k, count: v })).sort((x, y) => y.count - x.count);
+        }
+        function groupIssuable(arr, field) {
+            const map = {};
+            arr.forEach(a => {
+                if (!isIssuable(a)) return;
+                const key = a[field] || (field === 'department' ? 'Unassigned' : 'Unknown');
+                map[key] = (map[key] || 0) + 1;
+            });
+            return map;
+        }
+
+        const locAvailMap = groupIssuable(assetsData, 'location');
+        const deptAvailMap = groupIssuable(assetsData, 'department');
+        const catAvailMap = groupIssuable(assetsData, 'category');
+
+        setAvailabilityPill('avail-category', issuableCount, totalCount);
+        setAvailabilityPill('avail-status', issuableCount, totalCount);
+        setAvailabilityPill('avail-department', issuableCount, totalCount);
+        setAvailabilityPill('avail-location', issuableCount, totalCount);
+        setAvailabilityPill('avail-categorygood', assetsData.filter(isGood).filter(isIssuable).length, issuableCount);
+        setAvailabilityPill('avail-categoryfaulty', assetsData.filter(isFaulty).filter(isIssuable).length, issuableCount);
+        setAvailabilityPill('avail-categorylost', 0, issuableCount);
+        setAvailabilityPill('avail-statustable', issuableCount, totalCount);
+        setAvailabilityPill('avail-healthtable', issuableCount, totalCount);
+        setAvailabilityPill('avail-locationstable', issuableCount, totalCount);
+        setAvailabilityPill('avail-departmentstable', issuableCount, totalCount);
+        setAvailabilityPill('avail-categorytable', issuableCount, totalCount);
+
+        const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0, disposed: 0, approved: 0 };
+        assetsData.forEach(a => {
+            const sraw = (a.status || '').toString().trim();
+            const s = sraw.toLowerCase();
+            if (s === 'available') statusCounts.available++;
+            else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') statusCounts['in storage']++;
+            else if (s === 'assigned') statusCounts.assigned++;
+            else if (s === 'under repair' || s === 'repairing' || s === 'in repair') statusCounts['under repair']++;
+            else if (s === 'lost') statusCounts.lost++;
+            else if (s.includes('disposed') || s === 'dispose') statusCounts.disposed++;
+            else if (s.includes('disposal') || s.includes('approve') && s.includes('disposal')) statusCounts.approved++;
+            if (isFaulty(a) && s !== 'under repair' && !(s.includes('disposed') || s === 'dispose') && !(s.includes('disposal'))) statusCounts.faulty++;
+        });
+        const statusRows = [
+            { label: 'Available (Ready for Issuing)', key: 'available', badgeLabel: 'Available' },
+            { label: 'In Storage (Good working condition)', key: 'in storage', badgeLabel: 'In Storage' },
+            { label: 'Assigned (Assigned to Staff)', key: 'assigned', badgeLabel: 'Assigned' },
+            { label: 'Faulty (Can be Fixed)', key: 'faulty', badgeLabel: 'Faulty' },
+            { label: 'Lost', key: 'lost', badgeLabel: 'Lost' }
+        ];
+        if (statusCounts.disposed > 0) statusRows.push({ label: 'Disposed', key: 'disposed', badgeLabel: 'Disposed' });
+        if (statusCounts.approved > 0) statusRows.push({ label: 'Approved for Disposal', key: 'approved', badgeLabel: 'Approved for Disposal' });
         const statusTableBody = document.getElementById('statusTableBody');
-        statusTableBody.innerHTML = statusData.map(item => {
-            return '<tr><td><span class="badge ' + getStatusBadgeClass(item._id) + '">' + item._id + '</span></td><td><strong>' + item.count + '</strong></td></tr>';
+        statusTableBody.innerHTML = statusRows.map(r => {
+            const cnt = statusCounts[r.key] || 0;
+            const av = (r.key === 'available' || r.key === 'in storage') ? cnt : 0;
+            const filt = r.key === 'faultyUnderRepair' ? {} : (r.key === 'faulty' ? { condition: 'Faulty' } : { status: r.badgeLabel });
+            const ddAttr = r.key === 'faultyUnderRepair'
+                ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
+                : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
+            const avCell = (r.key === 'available' || r.key === 'in storage')
+                ? ('<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ status: r.badgeLabel }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Issuable assets in this status">' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>')
+                : ('<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>');
+            return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
+                '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
+                '<td><strong>' + cnt + '</strong></td>' +
+                avCell +
+                '</tr>';
         }).join('');
+
+        const localLocationData = groupByField(assetsData, 'location');
+        const localDepartmentData = groupByField(assetsData, 'department');
+        const localCategoryData = groupByField(assetsData, 'category');
+        const localCatGood = groupByField(assetsData, 'category', isGood);
+        const localCatFaulty = groupByField(assetsData, 'category', isFaulty);
+        const localCatLost = groupByField(assetsData, 'category', isLost);
+
+        const ddAttrFor = payload => {
+            const j = JSON.stringify(payload).replace(/"/g, '&quot;');
+            return 'onclick="drillDownToAssets(' + j + ')"';
+        };
+        const rowHover = 'style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'"';
 
         const locationTableBody = document.getElementById('locationTableBody');
-        locationTableBody.innerHTML = locationData.slice(0, 8).map(item => {
-            return '<tr><td>' + (item._id || 'Unknown') + '</td><td><strong>' + item.count + '</strong></td></tr>';
+        locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
+            const av = locAvailMap[item._id] || 0;
+            const locAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ location: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets at this location"';
+            return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
+                '<td>' + item._id + '</td>' +
+                '<td><strong>' + item.count + '</strong></td>' +
+                '<td ' + locAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                '</tr>';
         }).join('');
 
-        createStatusChart(statusData);
-        createLocationChart(locationData);
+        const departmentTableBody = document.getElementById('departmentTableBody');
+        if (departmentTableBody) {
+            departmentTableBody.innerHTML = localDepartmentData.slice(0, 8).map(item => {
+                const av = deptAvailMap[item._id] || 0;
+                const deptAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ department: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this dept"';
+                return '<tr ' + rowHover + ' title="View assets in &quot;' + item._id + '&quot;" ' + ddAttrFor({ department: item._id }) + '>' +
+                    '<td>' + item._id + '</td>' +
+                    '<td><strong>' + item.count + '</strong></td>' +
+                    '<td ' + deptAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        const categoryAllTableBody = document.getElementById('categoryAllTableBody');
+        if (categoryAllTableBody) {
+            categoryAllTableBody.innerHTML = localCategoryData.map(item => {
+                const av = catAvailMap[item._id] || 0;
+                const catAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this category"';
+                return '<tr ' + rowHover + ' title="View &quot;' + item._id + '&quot; assets" ' + ddAttrFor({ category: item._id }) + '>' +
+                    '<td>' + item._id + '</td>' +
+                    '<td><strong>' + item.count + '</strong></td>' +
+                    '<td ' + catAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        const healthMap = {};
+        const allCats = new Set();
+        function classifyHealth(a) {
+            if (isLost(a)) return 'lost';
+            if (normStatus(a.status) === 'under repair') return 'faulty';
+            if (isFaulty(a)) return 'faulty';
+            if (isGood(a)) return 'good';
+            return 'good';
+        }
+        assetsData.forEach(a => {
+            const cat = a.category || 'Unknown';
+            allCats.add(cat);
+            if (!healthMap[cat]) healthMap[cat] = { good: 0, faulty: 0, lost: 0 };
+            healthMap[cat][classifyHealth(a)]++;
+        });
+        localCategoryData.forEach(d => allCats.add(d._id));
+        [...allCats].forEach(cat => {
+            if (!healthMap[cat]) healthMap[cat] = { good: 0, faulty: 0, lost: 0 };
+        });
+
+        const healthTotals = { good: 0, faulty: 0, lost: 0 };
+        Object.values(healthMap).forEach(h => {
+            healthTotals.good += h.good; healthTotals.faulty += h.faulty; healthTotals.lost += h.lost;
+        });
+
+        const healthTableBody = document.getElementById('categoryHealthTableBody');
+        if (healthTableBody) {
+            const dataRows = [...allCats].sort().map(cat => {
+                const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
+                const av = catAvailMap[cat] || 0;
+                const catTotal = h.good + h.faulty + h.lost;
+                const availDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable (Available/In Storage) in this category"';
+                return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets (' + catTotal + ' total)" ' + ddAttrFor({ category: cat }) + '>' +
+                    '<td>' + cat + '</td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category: ' + h.good + '"><strong style="color:#10b981">' + h.good + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged/Under Repair in this category: ' + h.faulty + '"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
+                    '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category: ' + h.lost + '"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
+                    '<td ' + availDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
+                    '</tr>';
+            });
+            const footerHTML = '<tr style="font-weight:700;background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(251,191,36,0.08));border-top:2px solid #cbd5e1">' +
+                '<td style="letter-spacing:.8px;color:#1e293b">TOTAL ACROSS ALL CATEGORIES</td>' +
+                '<td style="color:#059669;font-size:1.05rem">' + healthTotals.good + '</td>' +
+                '<td style="color:#d97706;font-size:1.05rem">' + healthTotals.faulty + '</td>' +
+                '<td style="color:#dc2626;font-size:1.05rem">' + healthTotals.lost + '</td>' +
+                '<td><strong style="color:#334155">' + (healthTotals.good + healthTotals.faulty + healthTotals.lost) + '</strong></td>' +
+                '</tr>';
+            healthTableBody.innerHTML = (dataRows.length ? dataRows.join('') : '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>') + footerHTML;
+        }
+
+        const chartStatusInput = statusRows.map(r => ({ _id: r.badgeLabel, count: statusCounts[r.key] || 0 }));
+        createStatusChart(chartStatusInput);
+        createLocationChart(localLocationData);
+        createDepartmentChart(localDepartmentData);
+        createCategoryAllChart(localCategoryData);
+        createCategoryGoodChart(localCatGood);
+        createCategoryFaultyChart(localCatFaulty);
+        createCategoryLostChart(localCatLost);
+
+        // ---- Stat cards click-to-drilldown ----
+        const cardDrills = {
+            statCardTotal: {},
+            statCardAvailable: { status: 'Available' },
+            statCardAssigned: { status: 'Assigned' },
+            statCardStorage: { status: 'In Storage' },
+            statCardRepair: { status: 'Under Repair' },
+            statCardLost: { status: 'Lost' }
+        };
+        Object.entries(cardDrills).forEach(([id, payload]) => {
+            const ids = {
+                statCardTotal: null,
+                statCardAvailable: 'availableAssets',
+                statCardAssigned: 'assignedAssets',
+                statCardStorage: 'storageAssets',
+                statCardRepair: 'repairAssets',
+                statCardLost: 'lostAssets'
+            };
+            const target = ids[id] ? document.getElementById(ids[id])?.closest('.stat-card') : null;
+            if (id === 'statCardTotal') {
+                const t = document.getElementById('totalAssets')?.closest('.stat-card');
+                if (t) { t.style.cursor = 'pointer'; t.title = 'View all assets'; t.onclick = () => drillDownToAssets({}); }
+            } else if (target) {
+                target.style.cursor = 'pointer';
+                target.title = 'View ' + (payload.status || 'matching') + ' assets';
+                target.onclick = () => drillDownToAssets(payload);
+            }
+        });
+        // Lifecycle-end stat cards: Disposed / Approved For Disposal
+        const dispStatEl = document.getElementById('disposedAssets');
+        if (dispStatEl) {
+            const dispCard = dispStatEl.closest('.stat-card');
+            if (dispCard && disposedCount > 0) {
+                dispCard.style.cursor = 'pointer';
+                dispCard.title = 'View disposed assets';
+                dispCard.onclick = () => drillDownToAssets({ status: 'Disposed' });
+            }
+        }
+        const apprStatEl = document.getElementById('approvedAssets');
+        if (apprStatEl) {
+            const apprCard = apprStatEl.closest('.stat-card');
+            if (apprCard && approvedCount > 0) {
+                apprCard.style.cursor = 'pointer';
+                apprCard.title = 'View approved for disposal assets';
+                apprCard.onclick = () => drillDownToAssets({ status: 'Approved for Disposal' });
+            }
+        }
+
+        // ---- Dashboard Reconciliation / Duplicate Detection Audit ----
+        (function auditDashboard() {
+            const warnings = [];
+            const N = assetsData.length;
+
+            // 1) Duplicate _id check (actual duplicates in the DB / API response)
+            const idCounts = {};
+            assetsData.forEach(a => { const k = a._id || '__noid__'; idCounts[k] = (idCounts[k] || 0) + 1; });
+            const dupIds = Object.entries(idCounts).filter(([, v]) => v > 1);
+            if (dupIds.length > 0) warnings.push('⚠️ ' + dupIds.length + ' duplicate asset IDs (same asset returned ' + dupIds.reduce((s, [, v]) => s + (v - 1), 0) + ' extra times by API)');
+
+            // 2) Duplicate assetTag / serialNumber check (unique identifier conflicts)
+            const tagCounts = {};
+            assetsData.forEach(a => { if (!a.assetTag) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
+            const dupTags = Object.entries(tagCounts).filter(([, v]) => v > 1);
+            if (dupTags.length > 0) warnings.push('🏷️ ' + dupTags.length + ' duplicate Asset Tags found: ' + dupTags.slice(0, 5).map(([k, v]) => k + '×' + v).join(', ') + (dupTags.length > 5 ? ' …' : ''));
+
+            const serCounts = {};
+            assetsData.forEach(a => { if (!a.serialNumber) return; const k = a.serialNumber.trim().toLowerCase(); serCounts[k] = (serCounts[k] || 0) + 1; });
+            const dupSers = Object.entries(serCounts).filter(([, v]) => v > 1);
+            if (dupSers.length > 0) warnings.push('🔢 ' + dupSers.length + ' duplicate Serial Numbers found');
+
+            // 3) Stat cards sum === Total Assets ?
+            const statsSum = availableCount + assignedCount + storageCount + repairCount + lostCount + disposedCount + approvedCount;
+            if (unclassifiedCount > 0) {
+                const details = counts.__unknownBreakdown && counts.__unknownBreakdown.length
+                    ? ' — unrecognized values: ' + counts.__unknownBreakdown.slice(0, 10).map(([k, v]) => '"' + k + '"×' + v).join(', ') + (counts.__unknownBreakdown.length > 10 ? ' …' : '')
+                    : '';
+                warnings.push('🧮 Stat cards miss ' + unclassifiedCount + ' status row' + (unclassifiedCount === 1 ? '' : 's') + details);
+            }
+            if (statsSum + unclassifiedCount !== N) warnings.push('🧮 All known buckets (' + (statsSum + unclassifiedCount) + ') ≠ Total (' + N + ') — accounting mismatch');
+            if (disposedCount || approvedCount) {
+                warnings.splice(0, 0, '💡 Recognized lifecycle-end statuses: Disposed×' + disposedCount + (approvedCount ? '   Approved For Disposal×' + approvedCount : ''));
+            }
+
+            // 4) Category All rows sum === Total Assets ?
+            const catAllSum = localCategoryData.reduce((s, d) => s + d.count, 0);
+            if (catAllSum !== N) warnings.push('📦 Categories table sum (' + catAllSum + ') ≠ Total (' + N + ') — ' + (N - catAllSum) + ' assets with no category (will appear as Unknown)');
+
+            // 5) Location rows sum === Total Assets ?
+            const locSum = localLocationData.reduce((s, d) => s + d.count, 0);
+            if (locSum !== N) warnings.push('📍 Locations table sum (' + locSum + ') ≠ Total (' + N + ')');
+
+            // 6) Dept rows sum === Total Assets ?
+            const deptSum = localDepartmentData.reduce((s, d) => s + d.count, 0);
+            if (deptSum !== N) warnings.push('🏢 Departments table sum (' + deptSum + ') ≠ Total (' + N + ')');
+
+            // 7) Health summary G + F + L per row === Category All per category ?
+            let healthMismatches = 0;
+            Object.keys(healthMap).forEach(cat => {
+                const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
+                const hs = h.good + h.faulty + h.lost;
+                const catRow = localCategoryData.find(d => d._id === cat);
+                const cs = catRow ? catRow.count : 0;
+                if (hs !== cs) healthMismatches++;
+            });
+            if (healthMismatches > 0) warnings.push('🩺 ' + healthMismatches + ' categories have Health (G+F+L) ≠ Category All total');
+
+            // 8) Health TOTAL row === Total Assets ?
+            const hSum = healthTotals.good + healthTotals.faulty + healthTotals.lost;
+            if (hSum !== N) warnings.push('🩺 Health summary total (' + hSum + ') ≠ Assets total (' + N + ')');
+
+            if (warnings.length) {
+                try { console.log('[CareIT Dashboard Audit] Warnings (not shown to user):\n  ' + warnings.join('\n  ')); } catch (e) {}
+            } else {
+                try { console.log('[CareIT Dashboard Audit] Passed: ' + N + ' assets, no duplicates, all sections reconcile cleanly.'); } catch (e) {}
+            }
+        })();
+
+        // Apply filters preview if any set
+        applyDashboardFilters();
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
     }
+}
+
+function applyDashboardFilters() {
+    const all = window.__dashboardAllAssets || [];
+    const search = (document.getElementById('dashboardSearchInput')?.value || '').toString().toLowerCase().trim();
+    const statusF = document.getElementById('dashboardStatusFilter')?.value || '';
+    const categoryF = document.getElementById('dashboardCategoryFilter')?.value || '';
+    const preview = document.getElementById('dashboardFilterPreview');
+    const matchesBody = document.getElementById('dashboardMatchesBody');
+    const matchCount = document.getElementById('dashboardMatchCount');
+
+    const matches = all.filter(a => {
+        if (statusF && (a.status || '').toString().trim().toLowerCase() !== statusF.toLowerCase()) return false;
+        if (categoryF && (a.category || '').toString().trim().toLowerCase() !== categoryF.toLowerCase()) return false;
+        if (search) {
+            const hay = [a.assetTag, a.serialNumber, a.brand, a.model, a.assignedTo, a.location, a.department, a.condition, a.returnInfo && a.returnInfo.returnedBy, a.generation, a.processor, a.ram, a.ssd]
+                .filter(Boolean).join(' ').toLowerCase();
+            if (!hay.includes(search)) return false;
+        }
+        return true;
+    });
+
+    const hasAny = !!(search || statusF || categoryF);
+    if (preview) preview.style.display = hasAny ? 'block' : 'none';
+    if (!hasAny) return;
+
+    if (matchCount) matchCount.textContent = matches.length;
+    const issuable = matches.filter(m => {
+        const s = (m.status || '').toString().trim().toLowerCase();
+        return s === 'available' || s === 'in storage';
+    }).length;
+    setAvailabilityPill('avail-dashboard-match', issuable, matches.length);
+
+    if (matchesBody) {
+        if (!matches.length) {
+            matchesBody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No matching assets</td></tr>';
+        } else {
+            matchesBody.innerHTML = matches.slice(0, 50).map(a => {
+                return '<tr>' +
+                    '<td><strong>' + (a.assetTag || '-') + '</strong></td>' +
+                    '<td>' + (a.category || '-') + '</td>' +
+                    '<td>' + [a.brand, a.model].filter(Boolean).join(' / ') + '</td>' +
+                    '<td><span class="badge ' + getStatusBadgeClass(a.status) + '">' + (a.status || '-') + '</span></td>' +
+                    '<td>' + (a.location || '-') + '</td>' +
+                    '<td>' + (a.department || '-') + '</td>' +
+                    '<td>' + (a.assignedTo || '-') + '</td>' +
+                    '<td>' + (a.returnInfo && a.returnInfo.returnedBy || '-') + '</td>' +
+                    '<td>' + (a.condition || '-') + '</td>' +
+                    '</tr>';
+            }).join('') + (matches.length > 50 ? '<tr><td colspan="9" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
+        }
+    }
+}
+
+function clearDashboardFilters() {
+    ['dashboardSearchInput', 'dashboardStatusFilter', 'dashboardCategoryFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    applyDashboardFilters();
 }
 
 function createStatusChart(data) {
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
 
-    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    function colorFor(label) {
+        const s = (label || '').toString();
+        if (s.startsWith('Available')) return '#10b981';
+        if (s.includes('In Storage')) return '#f59e0b';
+        if (s.startsWith('Assigned') || s.includes('In Use')) return '#3b82f6';
+        if (s.includes('Under Repair') || s.includes('Can be Fixed')) return '#8b5cf6';
+        if (s.includes('Faulty') || s.includes('Damaged')) return '#ef4444';
+        if (s === 'Lost') return '#991b1b';
+        return '#6b7280';
+    }
 
     if (statusChart) {
         statusChart.destroy();
@@ -475,17 +1054,33 @@ function createStatusChart(data) {
             labels: data.map(d => d._id || 'Unknown'),
             datasets: [{
                 data: data.map(d => d.count),
-                backgroundColor: colors.slice(0, data.length),
+                backgroundColor: data.map(d => colorFor(d._id)),
                 borderColor: '#fff',
-                borderWidth: 2,
+                borderWidth: 3,
+                hoverOffset: 8,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            cutout: '60%',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = statusChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ status: label });
+            },
             plugins: {
                 legend: {
                     position: 'bottom',
+                    labels: {
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: {
+                            size: 12,
+                            weight: '500'
+                        }
+                    }
                 }
             }
         }
@@ -512,34 +1107,513 @@ function createLocationChart(data) {
                 backgroundColor: '#3b82f6',
                 borderColor: '#2563eb',
                 borderWidth: 1,
+                borderRadius: 6,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            indexAxis: 'x',
+            indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = locationChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ location: label });
+            },
             scales: {
-                y: {
+                x: {
                     beginAtZero: true,
+                    grid: {
+                        color: isDarkMode() ? '#475569' : '#f3f4f6'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
                 }
             },
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top',
+                    display: false,
                 }
             }
         }
     });
 }
 
+function createDepartmentChart(data) {
+    const ctx = document.getElementById('departmentChart');
+    if (!ctx) return;
+
+    const topData = data.slice(0, 8);
+    const colors = ['#FF5C00', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#6366f1'];
+
+    if (departmentChart) {
+        departmentChart.destroy();
+    }
+
+    departmentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: topData.map(d => d._id || 'Unassigned'),
+            datasets: [{
+                label: 'Assets',
+                data: topData.map(d => d.count),
+                backgroundColor: colors.slice(0, topData.length),
+                borderColor: '#fff',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = departmentChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ department: label });
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        color: isDarkMode() ? '#475569' : '#f3f4f6'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                }
+            }
+        }
+    });
+}
+
+let categoryAllChart = null;
+function createCategoryAllChart(data) {
+    const ctx = document.getElementById('categoryAllChart');
+    if (!ctx) return;
+    const colors = ['#6366f1', '#FF5C00', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#14b8a6', '#84cc16'];
+    if (categoryAllChart) categoryAllChart.destroy();
+    categoryAllChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                data: data.map(d => d.count),
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: '#fff',
+                borderWidth: 2,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryAllChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label });
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: { size: 12, weight: '500', family: 'Times New Roman' }
+                    }
+                }
+            }
+        }
+    });
+}
+
+let categoryGoodChart = null;
+function createCategoryGoodChart(data) {
+    const ctx = document.getElementById('categoryGoodChart');
+    if (!ctx) return;
+    if (categoryGoodChart) categoryGoodChart.destroy();
+    categoryGoodChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'Good / New Assets',
+                data: data.map(d => d.count),
+                backgroundColor: '#10b981',
+                borderColor: '#059669',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryGoodChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, condition: 'Good' });
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { color: isDarkMode() ? '#475569' : '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+let categoryFaultyChart = null;
+function createCategoryFaultyChart(data) {
+    const ctx = document.getElementById('categoryFaultyChart');
+    if (!ctx) return;
+    if (categoryFaultyChart) categoryFaultyChart.destroy();
+    categoryFaultyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'Faulty / Damaged',
+                data: data.map(d => d.count),
+                backgroundColor: '#f59e0b',
+                borderColor: '#d97706',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryFaultyChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, condition: 'Faulty' });
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { color: isDarkMode() ? '#475569' : '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+let categoryLostChart = null;
+function createCategoryLostChart(data) {
+    const ctx = document.getElementById('categoryLostChart');
+    if (!ctx) return;
+    if (categoryLostChart) categoryLostChart.destroy();
+    categoryLostChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d._id || 'Unknown'),
+            datasets: [{
+                label: 'Lost Assets',
+                data: data.map(d => d.count),
+                backgroundColor: '#ef4444',
+                borderColor: '#dc2626',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            onClick: (evt, els) => {
+                if (!els.length) return;
+                const label = categoryLostChart.data.labels[els[0].index] || '';
+                drillDownToAssets({ category: label, status: 'Lost' });
+            },
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+function updateDashboardChartTheme() {
+    [statusChart, locationChart, departmentChart, categoryAllChart, categoryGoodChart, categoryFaultyChart, categoryLostChart].forEach(chart => {
+        if (chart) chart.update('none');
+    });
+}
+
+// ========================================
+// USERS / ADMIN FUNCTIONS
+// ========================================
+function focusAdminSection(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const section = element.closest('.admin-form-section') || document.getElementById(elementId);
+    document.querySelectorAll('.admin-form-section').forEach(panel => {
+        panel.style.display = panel === section ? 'block' : 'none';
+    });
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (element.tagName === 'FORM') {
+        const firstInput = element.querySelector('input, select, textarea');
+        if (firstInput) setTimeout(() => firstInput.focus(), 350);
+    }
+}
+
+function hideAdminSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) section.style.display = 'none';
+}
+
+async function loadUsers() {
+    try {
+        const users = await apiCall('/users', 'GET');
+        const tbody = document.getElementById('usersTableBody');
+        if (!tbody) return;
+
+        if (!users || !users.length) {
+            const count = document.getElementById('adminUserCount');
+            if (count) count.textContent = '0';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
+            return;
+        }
+
+        const count = document.getElementById('adminUserCount');
+        if (count) count.textContent = users.length;
+
+        tbody.innerHTML = users.map(user => {
+            const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
+            const canEditRole = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
+            const canResetPassword = canEditRole;
+            const roleOptions = ['user', 'viewer', 'admin', ...(isSuperAdmin() ? ['superadmin'] : [])]
+                .map(role => '<option value="' + role + '"' + (user.role === role ? ' selected' : '') + '>' + role.charAt(0).toUpperCase() + role.slice(1) + '</option>')
+                .join('');
+            const resetButton = canResetPassword ? '<button class="btn btn-small btn-secondary" onclick="resetUserPassword(\'' + user._id + '\')">Reset Password</button>' : '';
+            return '<tr>' +
+                '<td>' + (user.name || '-') + '</td>' +
+                '<td>' + (user.email || '-') + '</td>' +
+                '<td>' + (canEditRole ? '<select class="user-role-select" data-user-id="' + user._id + '" style="min-width:130px;">' + roleOptions + '</select>' : (user.role || 'user')) + '</td>' +
+                '<td>' + formatDate(user.createdAt) + '</td>' +
+                '<td>' + resetButton + ' ' + (canDelete ? '<button class="btn btn-small btn-danger" onclick="deleteUser(\'' + user._id + '\')">Delete</button>' : '<span style="color:#94a3b8;">Protected</span>') + '</td>' +
+                '</tr>';
+        }).join('');
+
+        document.querySelectorAll('.user-role-select').forEach(select => {
+            select.addEventListener('change', async (event) => {
+                const userId = event.target.dataset.userId;
+                const newRole = event.target.value;
+                if (!userId || !newRole) return;
+
+                try {
+                    await apiCall('/users/' + userId, 'PUT', { role: newRole });
+                    showMessage('usersMessage', 'User role updated successfully', 'success');
+                    loadUsers();
+                } catch (error) {
+                    showMessage('usersMessage', error.message || 'Error updating user role', 'error', 0);
+                    loadUsers();
+                }
+            });
+        });
+    } catch (error) {
+        showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
+    }
+}
+
+function openUserCreateModal() {
+    const form = document.getElementById('createUserForm');
+    if (!form) return;
+    const roleSelect = document.getElementById('newUserRole');
+    if (roleSelect) {
+        const isSuper = isSuperAdmin();
+        roleSelect.innerHTML = '<option value="user">User</option>' +
+            '<option value="viewer">Viewer</option>' +
+            '<option value="admin">Admin</option>' +
+            (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
+    }
+    focusAdminSection('createUserForm');
+    const nameInput = document.getElementById('newUserName');
+    if (nameInput) nameInput.focus();
+}
+
+async function submitCreateUser(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can manage users', 'error');
+        return;
+    }
+
+    const payload = {
+        name: document.getElementById('newUserName').value,
+        email: document.getElementById('newUserEmail').value,
+        password: document.getElementById('newUserPassword').value,
+        role: document.getElementById('newUserRole').value,
+    };
+
+    try {
+        await apiCall('/users', 'POST', payload);
+        showMessage('usersMessage', 'User created successfully', 'success');
+        document.getElementById('createUserForm').reset();
+        loadUsers();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error creating user', 'error', 0);
+    }
+}
+
+async function deleteUser(userId) {
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can delete users', 'error');
+        return;
+    }
+
+    if (!confirm('Delete this user?')) return;
+
+    try {
+        await apiCall('/users/' + userId, 'DELETE');
+        showMessage('usersMessage', 'User deleted successfully', 'success');
+        loadUsers();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error deleting user', 'error', 0);
+    }
+}
+
+async function resetUserPassword(userId) {
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can reset passwords', 'error');
+        return;
+    }
+
+    if (!confirm('Generate a temporary password for this user? Their current password will stop working.')) return;
+
+    try {
+        const response = await apiCall('/users/' + userId + '/reset-password', 'POST');
+        showMessage('usersMessage', 'Temporary password: <strong>' + response.temporaryPassword + '</strong><br>Give it to the user securely. They must change it after signing in.', 'success', 0);
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Error resetting user password', 'error', 0);
+    }
+}
+
+async function submitReturnedAsset(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can record returned items', 'error');
+        return;
+    }
+
+    const payload = {
+        description: document.getElementById('returnedDescription').value,
+        category: document.getElementById('returnedCategory').value,
+        brand: document.getElementById('returnedBrand').value,
+        model: document.getElementById('returnedModel').value,
+        serialNumber: document.getElementById('returnedSerial').value,
+        returnedBy: document.getElementById('returnedBy').value,
+        department: document.getElementById('returnedDepartment').value,
+        location: document.getElementById('returnedLocation').value,
+        condition: document.getElementById('returnedCondition').value,
+        notes: document.getElementById('returnedNotes').value,
+    };
+
+    try {
+        await apiCall('/returned-assets', 'POST', payload);
+        showMessage('usersMessage', 'Returned item recorded successfully', 'success');
+        document.getElementById('returnedAssetForm').reset();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Unable to record returned item', 'error', 0);
+    }
+}
+
+async function submitIssueItem(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can issue IT equipment', 'error');
+        return;
+    }
+
+    const payload = {
+        itemName: document.getElementById('issueItemName').value,
+        category: document.getElementById('issueCategory').value,
+        description: document.getElementById('issueDescription').value,
+        serialNumber: document.getElementById('issueSerialNumber').value,
+        assignedTo: document.getElementById('issueAssignedTo').value,
+        issuedBy: document.getElementById('issueIssuedBy').value,
+        department: document.getElementById('issueDepartment').value,
+        location: document.getElementById('issueLocation').value,
+        condition: document.getElementById('issueCondition').value,
+        returnDueDate: document.getElementById('issueReturnDueDate').value,
+        notes: document.getElementById('issueNotes').value,
+    };
+
+    try {
+        await apiCall('/it-issues', 'POST', payload);
+        showMessage('usersMessage', 'IT item issued successfully', 'success');
+        document.getElementById('issueItemForm').reset();
+    } catch (error) {
+        showMessage('usersMessage', error.message || 'Unable to issue IT item', 'error', 0);
+    }
+}
+
 // ========================================
 // ASSETS FUNCTIONS
 // ========================================
+function drillDownToAssets(filters = {}) {
+    try { localStorage.setItem('careit_drilldown', JSON.stringify(filters)); } catch (e) {}
+    switchPage('assetsPage');
+}
+
 async function loadAssets() {
     try {
         allAssets = await apiCall('/assets', 'GET');
         renderAssetsTable(allAssets);
+
+        let dd = null;
+        try {
+            const raw = localStorage.getItem('careit_drilldown');
+            if (raw) dd = JSON.parse(raw);
+        } catch (e) { dd = null; }
+        if (dd && typeof dd === 'object') {
+            try { localStorage.removeItem('careit_drilldown'); } catch (e) {}
+            const sInput = document.getElementById('searchInput');
+            const sf = document.getElementById('statusFilter');
+            const cf = document.getElementById('categoryFilter');
+            if (sInput) sInput.value = dd.search || '';
+            if (cf) cf.value = dd.category || '';
+            if (sf) {
+                if (Array.isArray(dd.statuses) && dd.statuses.length) {
+                    sf.value = '[or:' + dd.statuses.join(',') + ']';
+                } else if (dd.status) {
+                    sf.value = dd.status;
+                } else {
+                    sf.value = '';
+                }
+            }
+            if (dd.department || dd.location || dd.condition) {
+                const fallback = [
+                    dd.department, dd.location, dd.condition
+                ].filter(Boolean).join(' ');
+                if (sInput && !sInput.value) sInput.value = fallback;
+            }
+            filterAssets();
+            const statusesDisplay = Array.isArray(dd.statuses) && dd.statuses.length ? dd.statuses.join(' / ') : null;
+            const msg = [
+                statusesDisplay ? 'Status: ' + statusesDisplay : null,
+                dd.status && !statusesDisplay ? 'Status: ' + dd.status : null,
+                dd.category ? 'Category: ' + dd.category : null,
+                dd.department ? 'Dept: ' + dd.department : null,
+                dd.location ? 'Location: ' + dd.location : null,
+                dd.condition ? 'Condition: ' + dd.condition : null,
+                dd.search ? 'Search: ' + dd.search : null
+            ].filter(Boolean).join('  •  ');
+            if (msg) showMessage('assetMessage', 'Filters applied from dashboard → ' + msg, 'info', 4500);
+        }
     } catch (error) {
         showMessage('assetMessage', 'Error loading assets: ' + error.message, 'error', 0);
     }
@@ -550,11 +1624,13 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
+        updateBulkActionsBar();
         return;
     }
 
     tbody.innerHTML = assets.map(asset => {
+        const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
         let actionButtons = '<button class="btn btn-small btn-secondary" onclick="viewAssetDetails(\'' + asset._id + '\')" title="View">View</button>';
 
         if (userRole === 'admin') {
@@ -562,34 +1638,257 @@ function renderAssetsTable(assets) {
             actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
 
-        return '<tr><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
+            ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
+            : '-';
+
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
+    updateBulkActionsBar();
+}
+
+function toggleSelectAll(checkbox) {
+    const visibleAssetIds = Array.from(document.querySelectorAll('.asset-checkbox')).map(cb => cb.dataset.id);
+    if (checkbox.checked) {
+        selectedAssetIds = [...new Set([...selectedAssetIds, ...visibleAssetIds])];
+    } else {
+        selectedAssetIds = selectedAssetIds.filter(id => !visibleAssetIds.includes(id));
+    }
+    document.querySelectorAll('.asset-checkbox').forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkActionsBar();
+}
+
+function toggleRowSelection(assetId, checkbox) {
+    if (checkbox.checked) {
+        if (!selectedAssetIds.includes(assetId)) {
+            selectedAssetIds.push(assetId);
+        }
+    } else {
+        selectedAssetIds = selectedAssetIds.filter(id => id !== assetId);
+    }
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.asset-checkbox');
+    const allChecked = allCheckboxes.length > 0 && Array.from(allCheckboxes).every(cb => cb.checked);
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allChecked;
+    }
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulkActionsBar');
+    const countEl = document.getElementById('selectedCount');
+    const isAdminValue = isAdmin();
+    
+    if (selectedAssetIds.length > 0) {
+        bar.style.display = 'flex';
+        countEl.textContent = selectedAssetIds.length;
+        document.getElementById('bulkEditBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
+        document.getElementById('bulkDeleteBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function clearSelection() {
+    selectedAssetIds = [];
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    document.querySelectorAll('.asset-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    updateBulkActionsBar();
+}
+
+async function bulkDeleteSelected() {
+    if (!isAdmin()) {
+        showMessage('assetMessage', 'Only admins can delete assets', 'error');
+        return;
+    }
+    if (selectedAssetIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to DELETE ${selectedAssetIds.length} selected asset(s)?`)) return;
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const assetId of selectedAssetIds) {
+        try {
+            await apiCall('/assets/' + assetId, 'DELETE');
+            successCount++;
+        } catch (err) {
+            errorCount++;
+        }
+    }
+    
+    let msg = `Bulk delete completed: ${successCount} deleted`;
+    if (errorCount > 0) msg += `, ${errorCount} failed`;
+    showMessage('assetMessage', msg, errorCount > 0 ? 'error' : 'success');
+    
+    clearSelection();
+    loadAssets();
+}
+
+function bulkEditSelected() {
+    if (!isAdmin()) {
+        showMessage('assetMessage', 'Only admins can edit assets', 'error');
+        return;
+    }
+    if (selectedAssetIds.length === 0) return;
+    
+    if (selectedAssetIds.length === 1) {
+        editAsset(selectedAssetIds[0]);
+        return;
+    }
+    
+    showAssignMultipleAssets(selectedAssetIds);
+}
+
+function showAssignMultipleAssets(assetIds) {
+    if (!assetIds || assetIds.length === 0) return;
+
+    const modal = document.getElementById('detailsModal');
+    const content = document.getElementById('assetDetailsContent');
+    const allAssetNames = assetIds.map(id => {
+        const asset = allAssets.find(a => a._id === id);
+        return asset ? (asset.assetTag + ' - ' + (asset.category || 'Asset')) : 'Asset';
+    }).join('<br>');
+
+    content.innerHTML = '<div class="asset-details-content"><h3>Assign Multiple Assets</h3><p><strong>Selected assets:</strong></p><div style="margin-bottom:16px; color:#334155;">' + allAssetNames + '</div>' +
+        '<form onsubmit="submitBulkAssignForm(event, ' + JSON.stringify(assetIds) + ')">' +
+        '<div class="form-group"><label for="bulkAssignToEmployee">Assigned To *</label><input id="bulkAssignToEmployee" type="text" required placeholder="Staff full name"></div>' +
+        '<div class="form-group"><label for="bulkAssignToDepartment">Department</label><select id="bulkAssignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>' +
+        '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Laptop" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Phone" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Tablet" onchange="renderAssignmentItemDetails(\'bulk-asset-select\', \'bulkAssignmentItemDetails\')"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="bulk-asset-select" value="Projector"> Projector</label></div><div id="bulkAssignmentItemDetails"></div></div>' +
+        '<div class="form-group"><label for="bulkAssignDescription">Staff asset description (Optional)</label><textarea id="bulkAssignDescription" rows="3" placeholder="Optional: e.g., Laptop + phone + tablet assigned to Jane Doe for field work"></textarea></div>' +
+        '<div style="display:flex; gap:10px; margin-top:20px;"><button type="submit" class="btn btn-success" style="flex:1;">Assign Selected Assets</button><button type="button" class="btn btn-secondary" onclick="closeDetailsModal()" style="flex:1;">Cancel</button></div></form></div>';
+
+    modal.style.display = 'flex';
+}
+
+async function submitBulkAssignForm(event, assetIds) {
+    event.preventDefault();
+
+    const selectedBulkBundle = Array.from(document.querySelectorAll('.bulk-asset-select:checked')).map(el => el.value);
+    const bulkItemDetails = collectAssignmentItemDetails('bulkAssignmentItemDetails');
+    const payload = {
+        assetIds,
+        assignedTo: document.getElementById('bulkAssignToEmployee').value,
+        department: document.getElementById('bulkAssignToDepartment').value,
+        assignedItems: selectedBulkBundle,
+        assignmentItemDetails: bulkItemDetails,
+        description: document.getElementById('bulkAssignDescription').value,
+    };
+
+    try {
+        await apiCall('/assets/bulk-assign', 'POST', payload);
+        showMessage('assetMessage', 'Assets assigned successfully', 'success');
+        closeDetailsModal();
+        clearSelection();
+        loadAssets();
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
 }
 
 function filterAssets() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
     const statusFilter = document.getElementById('statusFilter').value;
     const categoryFilter = document.getElementById('categoryFilter').value;
 
     let filtered = allAssets;
 
     if (searchTerm) {
-        filtered = filtered.filter(asset =>
-            (asset.assetTag?.toLowerCase().includes(searchTerm)) ||
-            (asset.serialNumber?.toLowerCase().includes(searchTerm)) ||
-            (asset.assignedTo?.toLowerCase().includes(searchTerm))
-        );
+        filtered = filtered.filter(asset => {
+            const hay = [
+                asset.assetTag, asset.serialNumber, asset.brand, asset.model,
+                asset.assignedTo, asset.location, asset.department, asset.condition,
+                asset.returnInfo && asset.returnInfo.returnedBy,
+                asset.generation, asset.processor, asset.ram, asset.ssd
+            ].filter(Boolean).join(' ').toLowerCase();
+            return hay.includes(searchTerm);
+        });
     }
 
     if (statusFilter) {
-        filtered = filtered.filter(asset => asset.status === statusFilter);
+        const want = (statusFilter || '').toString().trim().toLowerCase();
+        const orList = want.startsWith('[or:') && want.endsWith(']')
+            ? want.slice(4, -1).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+            : null;
+        if (orList && orList.length) {
+            filtered = filtered.filter(a => orList.includes((a.status || '').toString().trim().toLowerCase()));
+        } else {
+            filtered = filtered.filter(asset =>
+                (asset.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
+            );
+        }
     }
 
     if (categoryFilter) {
-        filtered = filtered.filter(asset => asset.category === categoryFilter);
+        filtered = filtered.filter(asset =>
+            (asset.category || '').toString().trim().toLowerCase() === categoryFilter.toLowerCase()
+        );
     }
 
     renderAssetsTable(filtered);
+}
+
+function clearAssetFilters() {
+    ['searchInput', 'statusFilter', 'categoryFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    filterAssets();
+}
+
+function renderAssignmentItemDetails(selector, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const selectedTypes = Array.from(document.querySelectorAll('.' + selector + ':checked')).map(input => input.value);
+    container.innerHTML = selectedTypes.map(type => {
+        const key = type.toLowerCase();
+        const laptopFields = type === 'Laptop' ?
+            '<div class="grid grid-2"><div class="form-group"><label>Generation</label><input data-assignment-type="' + key + '" data-assignment-field="generation" type="text" placeholder="e.g., 12th Gen"></div><div class="form-group"><label>Processor</label><input data-assignment-type="' + key + '" data-assignment-field="processor" type="text" placeholder="e.g., Intel Core i5"></div><div class="form-group"><label>RAM</label><input data-assignment-type="' + key + '" data-assignment-field="ram" type="text" placeholder="e.g., 16GB"></div><div class="form-group"><label>SSD</label><input data-assignment-type="' + key + '" data-assignment-field="ssd" type="text" placeholder="e.g., 512GB"></div></div>' : '';
+        const mobileFields = ['Phone', 'Tablet'].includes(type) ?
+            '<div class="form-group"><label>IMEI / Identifier</label><input data-assignment-type="' + key + '" data-assignment-field="imei" type="text" placeholder="IMEI or device identifier"></div>' : '';
+        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
+    }).join('');
+}
+
+function collectAssignmentItemDetails(containerId) {
+    const details = {};
+    const container = document.getElementById(containerId);
+    if (!container) return details;
+
+    container.querySelectorAll('[data-assignment-type][data-assignment-field]').forEach(input => {
+        const type = input.dataset.assignmentType;
+        const field = input.dataset.assignmentField;
+        if (!details[type]) details[type] = {};
+        if (input.value.trim()) details[type][field] = input.value.trim();
+    });
+
+    Object.keys(details).forEach(type => {
+        if (Object.keys(details[type]).length === 0) delete details[type];
+    });
+    return details;
+}
+
+function setLaptopSpecsVisibility(category) {
+    const wrap = document.querySelector('[data-laptop-specs]');
+    if (!wrap) return;
+    wrap.style.display = (category === 'Laptops') ? 'block' : 'none';
+    if (category !== 'Laptops') {
+        ['generation', 'processor', 'ram', 'ssd'].forEach(id => {
+            const s = document.getElementById(id);
+            if (s) s.value = '';
+        });
+    }
 }
 
 function openAssetModal() {
@@ -602,6 +1901,8 @@ function openAssetModal() {
     document.getElementById('assetForm').reset();
     document.getElementById('assetModalTitle').textContent = 'Add New Asset';
     document.getElementById('assetTag').disabled = false;
+    document.getElementById('assetAssignmentItemDetails').innerHTML = '';
+    setLaptopSpecsVisibility('');
     document.getElementById('assetModal').style.display = 'flex';
 }
 
@@ -618,9 +1919,14 @@ async function submitAssetForm(event) {
         return;
     }
 
+    const category = document.getElementById('category').value;
+    const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
+    const assignmentDetails = document.getElementById('assignmentDetails')?.value || '';
+    const assignmentItemDetails = collectAssignmentItemDetails('assetAssignmentItemDetails');
+
     const formData = {
         assetTag: document.getElementById('assetTag').value,
-        category: document.getElementById('category').value,
+        category: category,
         brand: document.getElementById('brand').value,
         model: document.getElementById('model').value,
         serialNumber: document.getElementById('serialNumber').value,
@@ -631,7 +1937,20 @@ async function submitAssetForm(event) {
         assignedTo: document.getElementById('assignedTo').value,
         department: document.getElementById('department').value,
         location: document.getElementById('location').value,
+        assignedItems: selectedBundle,
+        assignmentDetails: assignmentDetails,
+        assignmentItemDetails: assignmentItemDetails,
     };
+    if (category === 'Laptops') {
+        const gen = document.getElementById('generation').value;
+        const cpu = document.getElementById('processor').value;
+        const ram = document.getElementById('ram').value;
+        const ssd = document.getElementById('ssd').value;
+        if (gen) formData.generation = gen;
+        if (cpu) formData.processor = cpu;
+        if (ram) formData.ram = ram;
+        if (ssd) formData.ssd = ssd;
+    }
 
     try {
         if (editingAssetId) {
@@ -660,13 +1979,17 @@ async function editAsset(assetId) {
 
     editingAssetId = assetId;
     document.getElementById('assetModalTitle').textContent = 'Edit Asset';
-    document.getElementById('assetTag').disabled = true;
+    document.getElementById('assetTag').disabled = false;
 
     document.getElementById('assetTag').value = asset.assetTag;
     document.getElementById('category').value = asset.category;
     document.getElementById('brand').value = asset.brand || '';
     document.getElementById('model').value = asset.model || '';
     document.getElementById('serialNumber').value = asset.serialNumber || '';
+    document.getElementById('generation').value = asset.generation || '';
+    document.getElementById('processor').value = asset.processor || '';
+    document.getElementById('ram').value = asset.ram || '';
+    document.getElementById('ssd').value = asset.ssd || '';
     document.getElementById('purchaseDate').value = asset.purchaseDate?.split('T')[0] || '';
     document.getElementById('purchasePrice').value = asset.purchasePrice || '';
     document.getElementById('status').value = asset.status;
@@ -675,6 +1998,7 @@ async function editAsset(assetId) {
     document.getElementById('department').value = asset.department || '';
     document.getElementById('location').value = asset.location || '';
 
+    setLaptopSpecsVisibility(asset.category || '');
     document.getElementById('assetModal').style.display = 'flex';
 }
 
@@ -735,9 +2059,16 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Serial Number</span><span class="detail-value">' + (asset.serialNumber || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Model</span><span class="detail-value">' + (asset.model || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Brand</span><span class="detail-value">' + (asset.brand || '-') + '</span></div>';
+    if (asset.category === 'Laptops') {
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Generation</span><span class="detail-value">' + (asset.generation || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Processor</span><span class="detail-value">' + (asset.processor || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">RAM</span><span class="detail-value">' + (asset.ram || '-') + '</span></div>';
+        detailsHTML += '<div class="detail-item"><span class="detail-label">SSD</span><span class="detail-value">' + (asset.ssd || '-') + '</span></div>';
+    }
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
+    detailsHTML += '<div class="detail-item"><span class="detail-label">Returned By</span><span class="detail-value">' + (asset.returnInfo && asset.returnInfo.returnedBy ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' (' + formatDate(asset.returnInfo.returnDate) + ')' : '') : '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Department</span><span class="detail-value">' + (asset.department || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Location</span><span class="detail-value">' + (asset.location || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Purchase Date</span><span class="detail-value">' + formatDate(asset.purchaseDate) + '</span></div>';
@@ -757,7 +2088,9 @@ function showAssignForm(assetId) {
     let formHTML = '<form onsubmit="submitAssignForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Assign Asset</h3>';
     formHTML += '<div class="form-group"><label for="assignToEmployee">Assigned To *</label><input id="assignToEmployee" type="text" required placeholder="Employee name"></div>';
-    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option></select></div>';
+    formHTML += '<div class="form-group"><label for="assignToDepartment">Department</label><select id="assignToDepartment"><option value="">Select Department</option><option value="Operations">Operations</option><option value="Finance">Finance</option><option value="Administration & Logistics">Administration & Logistics</option><option value="Procurement">Procurement</option><option value="IT">IT</option><option value="Communications">Communications</option><option value="Programs">Programs</option><option value="CASCADE">CASCADE</option><option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option><option value="KRAPID+">KRAPID+</option><option value="MOFA">MOFA</option><option value="C2C">C2C</option><option value="Sowing Change">Sowing Change</option><option value="SHE SOARS">SHE SOARS</option><option value="CSDW">CSDW</option><option value="EXECUTIVE">EXECUTIVE</option><option value="Security">Security</option><option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option><option value="Programs & Fund raising">Programs & Fund raising</option><option value="Risk and Compliance">Risk and Compliance</option><option value="ESA">ESA</option><option value="Human Resource">Human Resource</option><option value="Private sector Engagement">Private sector Engagement</option><option value="Project Driver">Project Driver</option></select></div>';
+    formHTML += '<div class="form-group"><label>Assigned Device Bundle (Optional)</label><div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Laptop" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Laptop</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Phone" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Phone</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Tablet" onchange="renderAssignmentItemDetails(\'single-asset-select\', \'singleAssignmentItemDetails\')"> Tablet</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Monitor"> Monitor</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Charger"> Charger</label><label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" class="single-asset-select" value="Projector"> Projector</label></div><div id="singleAssignmentItemDetails"></div></div>';
+    formHTML += '<div class="form-group"><label for="assignDescription">Staff asset description (Optional)</label><textarea id="assignDescription" rows="3" placeholder="Optional: e.g., laptop + phone + tablet issued for field monitoring"></textarea></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Assignment</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
 }
@@ -775,9 +2108,14 @@ function showReturnForm(assetId) {
 async function submitAssignForm(event, assetId) {
     event.preventDefault();
 
+    const selectedBundle = Array.from(document.querySelectorAll('.single-asset-select:checked')).map(el => el.value);
+    const itemDetails = collectAssignmentItemDetails('singleAssignmentItemDetails');
     const data = {
         assignedTo: document.getElementById('assignToEmployee').value,
         department: document.getElementById('assignToDepartment').value,
+        assignedItems: selectedBundle,
+        assignmentItemDetails: itemDetails,
+        description: document.getElementById('assignDescription').value,
     };
 
     try {
@@ -927,5 +2265,9 @@ async function exportToPdf() {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+    const cat = document.getElementById('category');
+    if (cat) {
+        cat.addEventListener('change', () => setLaptopSpecsVisibility(cat.value || ''));
+    }
     initializeApp();
 });
