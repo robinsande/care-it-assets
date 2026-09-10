@@ -2,7 +2,7 @@
 // CONFIGURATION
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
-const API_TIMEOUT = 10000; // 10 seconds
+const API_TIMEOUT = 45000; // Allow time for Render to wake from sleep
 
 // ========================================
 // STATE MANAGEMENT
@@ -78,12 +78,12 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         options.body = JSON.stringify(data);
     }
 
+    let timeoutId;
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+        timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
         const response = await fetch(`${API_URL}${endpoint}`, { ...options, signal: controller.signal });
-        clearTimeout(timeoutId);
 
         if (response.status === 401) {
             localStorage.removeItem('token');
@@ -122,9 +122,11 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         }
     } catch (error) {
         if (error.name === 'AbortError') {
-            throw new Error('Request timeout - Server not responding');
+            throw new Error('The server is waking up. Please wait a moment and try again.');
         }
         throw error;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
     }
 }
 
@@ -202,6 +204,11 @@ function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('userRole');
+    const loginBtn = document.getElementById('userLoginBtn');
+    if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+    }
     switchPage('userLoginPage');
 }
 
@@ -227,6 +234,14 @@ function switchPage(pageId, options = {}) {
     const page = document.getElementById(pageId);
     if (page) {
         page.style.display = 'block';
+    }
+
+    if (pageId === 'userLoginPage') {
+        const loginBtn = document.getElementById('userLoginBtn');
+        if (loginBtn) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Sign In';
+        }
     }
 
     if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
@@ -360,7 +375,7 @@ async function handleUserLogin(event) {
 
         if (response.user.mustChangePassword) {
             showMessage('userLoginMessage', 'Temporary password accepted. Please choose a new password.', 'success', 1500);
-            setTimeout(() => switchPage('changePasswordPage'), 1500);
+                setTimeout(() => switchPage('changePasswordPage'), 1500);
             return;
         }
 
@@ -474,7 +489,6 @@ async function handleResetPassword(event) {
 async function handleChangePassword(event) {
     event.preventDefault();
 
-    const currentPassword = document.getElementById('currentPassword').value;
     const newPassword = document.getElementById('changeNewPassword').value;
     const confirmPassword = document.getElementById('changeConfirmPassword').value;
     const btn = document.getElementById('changePasswordBtn');
@@ -492,7 +506,7 @@ async function handleChangePassword(event) {
     try {
         btn.disabled = true;
         btn.textContent = 'Changing...';
-        await apiCall('/auth/change-password', 'POST', { currentPassword, newPassword });
+        await apiCall('/auth/change-password', 'POST', { newPassword });
         showMessage('changePasswordMessage', 'Password changed successfully. Redirecting...', 'success', 1500);
         setTimeout(() => {
             document.getElementById('changePasswordForm').reset();
