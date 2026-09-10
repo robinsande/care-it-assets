@@ -1638,7 +1638,7 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
         updateBulkActionsBar();
         return;
     }
@@ -1655,16 +1655,7 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        const bundleDetails = asset.assignmentItemDetails || {};
-        const bundleItems = Array.isArray(asset.assignedItems) ? asset.assignedItems : [];
-        const bundleCell = bundleItems.length
-            ? bundleItems.map(item => {
-                const detail = bundleDetails[item.toLowerCase()] || {};
-                return '<div><strong>' + item + '</strong>' + (detail.assetTag ? ' <span style="color:#64748b;">(' + detail.assetTag + ')</span>' : '') + '</div>';
-            }).join('')
-            : '-';
-
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + bundleCell + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
