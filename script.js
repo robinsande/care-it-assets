@@ -1638,7 +1638,7 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center no-data">No assets found</td></tr>';
         updateBulkActionsBar();
         return;
     }
@@ -1655,8 +1655,16 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
+        const bundleDetails = asset.assignmentItemDetails || {};
+        const bundleItems = Array.isArray(asset.assignedItems) ? asset.assignedItems : [];
+        const bundleCell = bundleItems.length
+            ? bundleItems.map(item => {
+                const detail = bundleDetails[item.toLowerCase()] || {};
+                return '<div><strong>' + item + '</strong>' + (detail.assetTag ? ' <span style="color:#64748b;">(' + detail.assetTag + ')</span>' : '') + '</div>';
+            }).join('')
+            : '-';
 
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + bundleCell + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -1871,7 +1879,7 @@ function renderAssignmentItemDetails(selector, containerId) {
             '<div class="grid grid-2"><div class="form-group"><label>Generation</label><input data-assignment-type="' + key + '" data-assignment-field="generation" type="text" placeholder="e.g., 12th Gen"></div><div class="form-group"><label>Processor</label><input data-assignment-type="' + key + '" data-assignment-field="processor" type="text" placeholder="e.g., Intel Core i5"></div><div class="form-group"><label>RAM</label><input data-assignment-type="' + key + '" data-assignment-field="ram" type="text" placeholder="e.g., 16GB"></div><div class="form-group"><label>SSD</label><input data-assignment-type="' + key + '" data-assignment-field="ssd" type="text" placeholder="e.g., 512GB"></div></div>' : '';
         const mobileFields = ['Phone', 'Tablet'].includes(type) ?
             '<div class="form-group"><label>IMEI / Identifier</label><input data-assignment-type="' + key + '" data-assignment-field="imei" type="text" placeholder="IMEI or device identifier"></div>' : '';
-        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
+        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Asset Tag</label><input data-assignment-type="' + key + '" data-assignment-field="assetTag" type="text" placeholder="Asset tag"></div><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
     }).join('');
 }
 
@@ -2082,6 +2090,14 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
+    if (Array.isArray(asset.assignedItems) && asset.assignedItems.length) {
+        const bundleDetails = asset.assignmentItemDetails || {};
+        const bundleText = asset.assignedItems.map(item => {
+            const detail = bundleDetails[item.toLowerCase()] || {};
+            return item + (detail.assetTag ? ' - ' + detail.assetTag : '');
+        }).join('<br>');
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Device Bundle</span><span class="detail-value">' + bundleText + '</span></div>';
+    }
     detailsHTML += '<div class="detail-item"><span class="detail-label">Returned By</span><span class="detail-value">' + (asset.returnInfo && asset.returnInfo.returnedBy ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' (' + formatDate(asset.returnInfo.returnDate) + ')' : '') : '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Department</span><span class="detail-value">' + (asset.department || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Location</span><span class="detail-value">' + (asset.location || '-') + '</span></div>';
