@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CARE IT Asset Management System</title>
-    <link rel="stylesheet" href="style.css?v=20260827b">
+    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260910a">
+    <link rel="stylesheet" href="style.css?v=20260910a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -149,8 +150,7 @@
                 <p class="auth-subtitle">Your temporary password must be replaced before continuing.</p>
                 <div id="changePasswordMessage" class="alert" style="display: none;"></div>
                 <form id="changePasswordForm" class="auth-form" onsubmit="handleChangePassword(event)">
-                    <label for="currentPassword">Temporary Password</label>
-                    <input id="currentPassword" type="password" placeholder="Enter your temporary password" required>
+                    <p class="auth-description">Your temporary password has already been verified. Choose a new password to continue.</p>
                     <label for="changeNewPassword">New Password</label>
                     <input id="changeNewPassword" type="password" placeholder="Enter your new password" required minlength="6">
                     <label for="changeConfirmPassword">Confirm New Password</label>
