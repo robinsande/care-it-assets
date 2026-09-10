@@ -2010,3 +2010,50 @@ body.dark-mode #dashboardPage .filters select option {
     background: #111827;
     color: #f8fafc;
 }
+
+/* Light dashboard contrast */
+body:not(.dark-mode) #dashboardPage .dashboard-title-group h1,
+body:not(.dark-mode) #dashboardPage .chart-card h2,
+body:not(.dark-mode) #dashboardPage .chart-card-header h2,
+body:not(.dark-mode) #dashboardPage .stats-table h2,
+body:not(.dark-mode) #dashboardPage .stats-table thead th,
+body:not(.dark-mode) #dashboardPage .stats-table tbody td,
+body:not(.dark-mode) #dashboardPage .stats-table tbody td strong,
+body:not(.dark-mode) #dashboardPage .dashboard-filter-preview th,
+body:not(.dark-mode) #dashboardPage .dashboard-filter-preview td {
+    color: #1e293b !important;
+}
+
+body:not(.dark-mode) #dashboardPage .stat-content h3 {
+    color: #475569 !important;
+}
+
+body:not(.dark-mode) #dashboardPage .stat-value {
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+body:not(.dark-mode) #dashboardPage .filters,
+body:not(.dark-mode) #dashboardPage .filters select,
+body:not(.dark-mode) #dashboardPage .filters input,
+body:not(.dark-mode) #dashboardPage .filters .search-box,
+body:not(.dark-mode) #dashboardPage .filters select option {
+    color: #1e293b !important;
+}
+
+body:not(.dark-mode) #dashboardPage .filters input::placeholder {
+    color: #64748b;
+    opacity: 1;
+}
+
+body:not(.dark-mode) #dashboardPage .availability-pill {
+    color: #065f46 !important;
+}
+
+body:not(.dark-mode) #dashboardPage .availability-pill.zero {
+    color: #991b1b !important;
+}
+
+body:not(.dark-mode) #dashboardPage .stats-table tbody td.no-data,
+body:not(.dark-mode) #dashboardPage .dashboard-filter-preview .no-data {
+    color: #64748b !important;
+}
