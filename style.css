@@ -1976,6 +1976,30 @@ body.dark-mode #dashboardPage .availability-pill {
     -webkit-text-fill-color: #f8fafc;
 }
 
+body.dark-mode #dashboardPage .stat-card {
+    background: linear-gradient(135deg, #1f2937 0%, #273449 100%);
+    border-color: #475569;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+body.dark-mode #dashboardPage .stat-card .stat-content h3 {
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode #dashboardPage .stat-card .stat-value,
+body.dark-mode #dashboardPage .stat-card.total .stat-value,
+body.dark-mode #dashboardPage .stat-card.available .stat-value,
+body.dark-mode #dashboardPage .stat-card.assigned .stat-value,
+body.dark-mode #dashboardPage .stat-card.storage .stat-value,
+body.dark-mode #dashboardPage .stat-card.repair .stat-value,
+body.dark-mode #dashboardPage .stat-card.lost .stat-value,
+body.dark-mode #dashboardPage .stat-card.approved .stat-value,
+body.dark-mode #dashboardPage .stat-card.disposed .stat-value {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.16);
+}
+
 body.dark-mode #dashboardPage .filters,
 body.dark-mode #dashboardPage .filters select,
 body.dark-mode #dashboardPage .filters .search-box {
