@@ -330,7 +330,7 @@ function renderHeaderActions() {
 
     if (['admin', 'superadmin'].includes(userRole)) {
         actionsHTML = '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>';
-        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel</button>';
+        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel or Image</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="switchPage(\'usersPage\')">Users / Ops</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
