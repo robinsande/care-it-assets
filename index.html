@@ -1113,15 +1113,15 @@
     <div id="importModal" class="modal-overlay" style="display: none;">
         <div class="modal">
             <div class="modal-header">
-                <h2>Import Assets from Excel</h2>
+                <h2>Import Assets from Excel or Image</h2>
                 <button class="close-btn" onclick="closeImportModal()">✕</button>
             </div>
 
             <form id="importForm" onsubmit="submitImportForm(event)">
                 <div class="form-group">
-                    <label for="excelFile">Select Excel File *</label>
-                    <input id="excelFile" type="file" accept=".xlsx,.xls" required>
-                    <p class="form-hint">Format: Asset Tag, Category, Brand, Model, Serial Number, Purchase Date, Purchase Price, Status, Department, Location, Condition</p>
+                    <label for="excelFile">Select Excel file or asset-list image *</label>
+                    <input id="excelFile" type="file" accept=".xlsx,.xls,image/jpeg,image/png,image/webp,image/bmp,image/tiff" required>
+                    <p class="form-hint">Excel headers can be named differently. Images are scanned with OCR; only rows with a clear asset tag and category are added. Review imported assets and complete missing details afterward.</p>
                 </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
