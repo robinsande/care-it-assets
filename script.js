@@ -2,7 +2,9 @@
 // CONFIGURATION
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
-const API_TIMEOUT = 60000;
+const API_TIMEOUT = 15000;
+const HEALTH_TIMEOUT = 8000;
+const API_RETRY_DELAYS = [250, 750];
 
 // ========================================
 // STATE MANAGEMENT
@@ -65,6 +67,36 @@ function animateCount(elementId, target, duration = 900) {
 // ========================================
 // API CALL HELPER
 // ========================================
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function warmBackend() {
+    const healthUrl = API_URL.replace(/\/api\/?$/, '') + '/health';
+    try {
+        await fetchWithTimeout(healthUrl, { method: 'GET', cache: 'no-store' }, HEALTH_TIMEOUT);
+        perfLog('backend:warm');
+    } catch (error) {
+        perfLog('backend:warm-failed', { message: error.message });
+    }
+}
+
+function startBackendKeepAlive() {
+    warmBackend();
+    window.setInterval(() => {
+        if (document.visibilityState === 'visible') warmBackend();
+    }, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') warmBackend();
+    });
+}
+
 async function apiCall(endpoint, method = 'GET', data = null) {
     const requestStartedAt = performance.now();
     perfLog('api:start', { endpoint, method });
@@ -86,12 +118,21 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         options.body = JSON.stringify(data);
     }
 
-    let timeoutId;
     try {
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
-        const response = await fetch(`${API_URL}${endpoint}`, { ...options, signal: controller.signal });
+        let response;
+        for (let attempt = 0; ; attempt++) {
+            try {
+                response = await fetchWithTimeout(`${API_URL}${endpoint}`, options, API_TIMEOUT);
+                if (response.status >= 500 && attempt < API_RETRY_DELAYS.length) {
+                    await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAYS[attempt]));
+                    continue;
+                }
+                break;
+            } catch (error) {
+                if (attempt >= API_RETRY_DELAYS.length) throw error;
+                await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAYS[attempt]));
+            }
+        }
         perfLog('api:response', { endpoint, method, status: response.status, durationMs: Math.round(performance.now() - requestStartedAt) });
 
         if (response.status === 401) {
@@ -135,7 +176,6 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         }
         throw error;
     } finally {
-        if (timeoutId) clearTimeout(timeoutId);
         perfLog('api:end', { endpoint, method, durationMs: Math.round(performance.now() - requestStartedAt) });
     }
 }
@@ -2295,5 +2335,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cat) {
         cat.addEventListener('change', () => setLaptopSpecsVisibility(cat.value || ''));
     }
+    startBackendKeepAlive();
     initializeApp();
 });
