@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CARE logo">
+  <rect width="128" height="128" fill="#fff"/>
+  <g fill="none" stroke-linecap="round" stroke-width="13">
+    <path stroke="#f58220" d="M64 18c-11 9-16 20-14 31M31 29c-2 14 2 25 12 32M18 64c12-2 22 2 30 12M29 97c14 2 25-2 32-12M64 110c-2-12 2-22 12-30M97 99c2-14-2-25-12-32M110 64c-12 2-22-2-30-12M99 31c-14-2-25 2-32 12"/>
+    <path stroke="#ffb81c" d="M45 20c-3 12 1 23 10 31M20 45c12-3 23 1 31 10M20 83c12 3 23-1 31-10M45 108c3-12-1-23-10-31M83 108c3-12-1-23-10-31M108 83c-12 3-23-1-31-10M108 45c-12-3-23 1-31 10M83 20c-3 12 1 23 10 31"/>
+  </g>
+  <circle cx="64" cy="64" r="22" fill="#fff"/>
+</svg>

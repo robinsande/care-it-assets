@@ -2,7 +2,7 @@
 // CONFIGURATION
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
-const API_TIMEOUT = 45000; // Allow time for Render to wake from sleep
+const API_TIMEOUT = 15000;
 
 // ========================================
 // STATE MANAGEMENT
@@ -14,6 +14,12 @@ let locationChart = null;
 let departmentChart = null;
 let resetEmail = null; // For password reset flow
 let selectedAssetIds = [];
+
+const perfLog = (event, details = {}) => {
+    try {
+        console.info('[CareIT Perf]', event, { at: Math.round(performance.now()), ...details });
+    } catch (e) {}
+};
 
 function isDarkMode() {
     return localStorage.getItem('careit_dark_mode') === 'true';
@@ -60,6 +66,8 @@ function animateCount(elementId, target, duration = 900) {
 // API CALL HELPER
 // ========================================
 async function apiCall(endpoint, method = 'GET', data = null) {
+    const requestStartedAt = performance.now();
+    perfLog('api:start', { endpoint, method });
     const token = localStorage.getItem('token');
     const headers = {
         'Content-Type': 'application/json',
@@ -84,6 +92,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
         const response = await fetch(`${API_URL}${endpoint}`, { ...options, signal: controller.signal });
+        perfLog('api:response', { endpoint, method, status: response.status, durationMs: Math.round(performance.now() - requestStartedAt) });
 
         if (response.status === 401) {
             localStorage.removeItem('token');
@@ -122,11 +131,12 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         }
     } catch (error) {
         if (error.name === 'AbortError') {
-            throw new Error('The server is waking up. Please wait a moment and try again.');
+            throw new Error('Taking longer than usual - please try again.');
         }
         throw error;
     } finally {
         if (timeoutId) clearTimeout(timeoutId);
+        perfLog('api:end', { endpoint, method, durationMs: Math.round(performance.now() - requestStartedAt) });
     }
 }
 
@@ -227,6 +237,7 @@ function downloadFile(blob, filename) {
 // PAGE NAVIGATION
 // ========================================
 function switchPage(pageId, options = {}) {
+    perfLog('route:mount', { pageId });
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
     });
@@ -330,7 +341,7 @@ function renderHeaderActions() {
 
     if (['admin', 'superadmin'].includes(userRole)) {
         actionsHTML = '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>';
-        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel</button>';
+        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel or Image</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="switchPage(\'usersPage\')">Users / Ops</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
@@ -354,6 +365,8 @@ function toggleMobileMenu() {
 // ========================================
 async function handleUserLogin(event) {
     event.preventDefault();
+    const loginStartedAt = performance.now();
+    perfLog('login:submit');
 
     const email = document.getElementById('userLoginEmail').value;
     const password = document.getElementById('userLoginPassword').value;
@@ -364,6 +377,7 @@ async function handleUserLogin(event) {
         loginBtn.textContent = 'Signing in...';
 
         const response = await apiCall('/auth/login', 'POST', { email, password });
+        perfLog('login:credentials-verified', { durationMs: Math.round(performance.now() - loginStartedAt) });
 
         if (!response || !response.token) {
             throw new Error('Invalid response from server');
@@ -372,20 +386,22 @@ async function handleUserLogin(event) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         localStorage.setItem('userRole', response.user.role);
+        perfLog('login:session-stored', { durationMs: Math.round(performance.now() - loginStartedAt) });
 
         if (response.user.mustChangePassword) {
             showMessage('userLoginMessage', 'Temporary password accepted. Please choose a new password.', 'success', 1500);
-                setTimeout(() => switchPage('changePasswordPage'), 1500);
+            perfLog('login:redirect', { target: 'changePasswordPage', durationMs: Math.round(performance.now() - loginStartedAt) });
+            switchPage('changePasswordPage');
             return;
         }
 
         showMessage('userLoginMessage', 'Login successful! Redirecting...', 'success', 1500);
 
-        setTimeout(() => {
-            initializeApp();
-        }, 1500);
+        perfLog('login:redirect', { durationMs: Math.round(performance.now() - loginStartedAt) });
+        initializeApp();
     } catch (error) {
         showMessage('userLoginMessage', error.message || 'Login failed', 'error', 0);
+    } finally {
         loginBtn.disabled = false;
         loginBtn.textContent = 'Sign In';
     }
@@ -561,6 +577,8 @@ function setAvailabilityPill(pillId, available, total) {
 }
 
 async function loadDashboardData() {
+    const dashboardStartedAt = performance.now();
+    perfLog('dashboard:load-start');
     try {
         // Set dashboard date
         const dateEl = document.querySelector('#dashboardDate span');
@@ -573,24 +591,9 @@ async function loadDashboardData() {
             });
         }
 
-        const [statusData, locationData, departmentData, assetsData, categoryData, categoryFaulty, categoryGood, categoryLost,
-            availTotals, availByCat, availByDept, availByLoc, availByStatus, availByCondition
-        ] = await Promise.all([
-            apiCall('/dashboard/status', 'GET'),
-            apiCall('/dashboard/location', 'GET'),
-            apiCall('/dashboard/department', 'GET'),
-            apiCall('/assets', 'GET'),
-            apiCall('/dashboard/category', 'GET'),
-            apiCall('/dashboard/category/faulty', 'GET'),
-            apiCall('/dashboard/category/good', 'GET'),
-            apiCall('/dashboard/category/lost', 'GET'),
-            apiCall('/dashboard/available/total', 'GET'),
-            apiCall('/dashboard/available/category', 'GET'),
-            apiCall('/dashboard/available/department', 'GET'),
-            apiCall('/dashboard/available/location', 'GET'),
-            apiCall('/dashboard/available/status', 'GET'),
-            apiCall('/dashboard/available/condition', 'GET')
-        ]);
+        const dashboardRequestStartedAt = performance.now();
+        const assetsData = await apiCall('/dashboard/assets', 'GET');
+        perfLog('dashboard:fetches-end', { durationMs: Math.round(performance.now() - dashboardRequestStartedAt) });
 
         window.__dashboardAllAssets = assetsData;
 
@@ -977,6 +980,7 @@ async function loadDashboardData() {
 
         // Apply filters preview if any set
         applyDashboardFilters();
+        perfLog('dashboard:interactive', { durationMs: Math.round(performance.now() - dashboardStartedAt), assetCount: assetsData.length });
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
     }
@@ -1655,7 +1659,6 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-
         return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
@@ -1871,7 +1874,7 @@ function renderAssignmentItemDetails(selector, containerId) {
             '<div class="grid grid-2"><div class="form-group"><label>Generation</label><input data-assignment-type="' + key + '" data-assignment-field="generation" type="text" placeholder="e.g., 12th Gen"></div><div class="form-group"><label>Processor</label><input data-assignment-type="' + key + '" data-assignment-field="processor" type="text" placeholder="e.g., Intel Core i5"></div><div class="form-group"><label>RAM</label><input data-assignment-type="' + key + '" data-assignment-field="ram" type="text" placeholder="e.g., 16GB"></div><div class="form-group"><label>SSD</label><input data-assignment-type="' + key + '" data-assignment-field="ssd" type="text" placeholder="e.g., 512GB"></div></div>' : '';
         const mobileFields = ['Phone', 'Tablet'].includes(type) ?
             '<div class="form-group"><label>IMEI / Identifier</label><input data-assignment-type="' + key + '" data-assignment-field="imei" type="text" placeholder="IMEI or device identifier"></div>' : '';
-        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
+        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Asset Tag</label><input data-assignment-type="' + key + '" data-assignment-field="assetTag" type="text" placeholder="Asset tag"></div><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
     }).join('');
 }
 
@@ -2082,6 +2085,14 @@ async function viewAssetDetails(assetId) {
     detailsHTML += '<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value"><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Condition</span><span class="detail-value">' + (asset.condition || 'Good') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Assigned To</span><span class="detail-value">' + (asset.assignedTo || '-') + '</span></div>';
+    if (Array.isArray(asset.assignedItems) && asset.assignedItems.length) {
+        const bundleDetails = asset.assignmentItemDetails || {};
+        const bundleText = asset.assignedItems.map(item => {
+            const detail = bundleDetails[item.toLowerCase()] || {};
+            return item + (detail.assetTag ? ' - ' + detail.assetTag : '');
+        }).join('<br>');
+        detailsHTML += '<div class="detail-item"><span class="detail-label">Device Bundle</span><span class="detail-value">' + bundleText + '</span></div>';
+    }
     detailsHTML += '<div class="detail-item"><span class="detail-label">Returned By</span><span class="detail-value">' + (asset.returnInfo && asset.returnInfo.returnedBy ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' (' + formatDate(asset.returnInfo.returnDate) + ')' : '') : '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Department</span><span class="detail-value">' + (asset.department || '-') + '</span></div>';
     detailsHTML += '<div class="detail-item"><span class="detail-label">Location</span><span class="detail-value">' + (asset.location || '-') + '</span></div>';
@@ -2193,12 +2204,13 @@ async function submitImportForm(event) {
         return;
     }
 
+    const isImage = file.type.startsWith('image/');
     const formData = new FormData();
     formData.append('file', file);
 
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(API_URL + '/import/excel', {
+        const response = await fetch(API_URL + (isImage ? '/import/image' : '/import/excel'), {
             method: 'POST',
             headers: {
                 'Authorization': 'Bearer ' + token
@@ -2219,7 +2231,7 @@ async function submitImportForm(event) {
         const result = await response.json();
         let message = 'Import successful! ' + result.importedCount + ' assets imported';
         if (result.errorCount > 0) {
-            message += '. ' + result.errorCount + ' errors occurred.';
+            message += '. ' + result.errorCount + ' rows need review.';
         }
 
         showMessage('assetMessage', message, 'success');

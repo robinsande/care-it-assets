@@ -9,8 +9,6 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
-const https = require("https");
-const { createWorker } = require("tesseract.js");
 require("dotenv").config();
 
 const app = express();
@@ -18,50 +16,24 @@ const app = express();
 /* =========================
    EMAIL CONFIGURATION
 ========================= */
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const EMAIL_SENDER = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
-const EMAIL_SENDER_NAME = process.env.BREVO_SENDER_NAME || "CARE IT Asset Management";
-const SMTP_USER = process.env.EMAIL_USER;
-const SMTP_PASS = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
-const transporter = SMTP_USER && SMTP_PASS ? nodemailer.createTransport({
+const SMTP_USER = process.env.EMAIL_USER || "carepassreset@gmail.com";
+const SMTP_PASS = (process.env.EMAIL_PASS || "spha swpq vsoo baju").replace(/\s+/g, "");
+const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || "gmail",
-  auth: { user: SMTP_USER, pass: SMTP_PASS }
-}) : null;
-
-function sendBrevoEmail(message) {
-  return new Promise((resolve, reject) => {
-    const request = https.request({
-      hostname: "api.brevo.com",
-      path: "/v3/smtp/email",
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "api-key": BREVO_API_KEY,
-        "content-type": "application/json"
-      }
-    }, response => {
-      let body = "";
-      response.on("data", chunk => { body += chunk; });
-      response.on("end", () => {
-        if (response.statusCode >= 200 && response.statusCode < 300) return resolve(body);
-        reject(new Error(`Brevo email failed (${response.statusCode}): ${body}`));
-      });
-    });
-
-    request.on("error", reject);
-    request.write(JSON.stringify(message));
-    request.end();
-  });
-}
+  auth: {
+    user: SMTP_USER,
+    pass: SMTP_PASS
+  }
+});
 
 // Function to send verification code email
 async function sendVerificationCodeEmail(email, code, userName) {
   try {
-    if (!EMAIL_SENDER) {
-      throw new Error("Set BREVO_SENDER_EMAIL in the backend environment");
-    }
-
-    const html = `
+    const mailOptions = {
+      from: `"CARE IT Asset Management" <${SMTP_USER}>`,
+      to: email,
+      subject: "CARE IT - Password Reset Verification Code",
+      html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px;">
             <h2 style="color: #1f2937; margin-top: 0;">CARE IT Asset Management</h2>
@@ -94,28 +66,10 @@ async function sendVerificationCodeEmail(email, code, userName) {
             </p>
           </div>
         </div>
-      `;
-
-    const message = {
-      sender: { email: EMAIL_SENDER, name: EMAIL_SENDER_NAME },
-      to: [{ email }],
-      subject: "CARE IT - Password Reset Verification Code",
-      htmlContent: html
+      `
     };
 
-    if (BREVO_API_KEY) {
-      await sendBrevoEmail(message);
-    } else if (transporter) {
-      await transporter.sendMail({
-        from: `"${EMAIL_SENDER_NAME}" <${EMAIL_SENDER}>`,
-        to: email,
-        subject: message.subject,
-        html
-      });
-    } else {
-      throw new Error("Set BREVO_API_KEY and BREVO_SENDER_EMAIL in the backend environment");
-    }
-
+    await transporter.sendMail(mailOptions);
     console.log(`✅ Verification code sent to ${email}`);
   } catch (error) {
     console.error("❌ Email sending error:", error);
@@ -141,20 +95,6 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // Logger
 app.use(morgan(process.env.LOG_LEVEL || "dev"));
 
-app.use((req, res, next) => {
-  const startedAt = process.hrtime.bigint();
-  res.on("finish", () => {
-    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
-    console.info("[CareIT Perf] api", JSON.stringify({
-      method: req.method,
-      path: req.originalUrl,
-      status: res.statusCode,
-      durationMs: Math.round(durationMs)
-    }));
-  });
-  next();
-});
-
 // File Upload
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -166,15 +106,6 @@ const upload = multer({
     } else {
       cb(new Error("Only Excel files are allowed"));
     }
-  }
-});
-
-const imageUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (/^image\/(jpeg|png|webp|bmp|tiff)$/.test(file.mimetype)) cb(null, true);
-    else cb(new Error("Only JPG, PNG, WEBP, BMP, or TIFF images are allowed"));
   }
 });
 
@@ -204,7 +135,6 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ["user", "viewer", "admin", "superadmin"], default: "user" },
 }, { timestamps: true });
 
-userSchema.index({ email: 1 }, { unique: true });
 const User = mongoose.model("User", userSchema);
 
 /* =========================
@@ -218,7 +148,6 @@ const passwordResetSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, expires: 600 } // Auto-delete after 10 minutes
 });
 
-passwordResetSchema.index({ email: 1, verified: 1, expiresAt: 1 });
 const PasswordReset = mongoose.model("PasswordReset", passwordResetSchema);
 
 /* =========================
@@ -302,7 +231,6 @@ app.post("/api/auth/register", async (req, res) => {
 
 // LOGIN
 app.post("/api/auth/login", async (req, res) => {
-  const loginStartedAt = process.hrtime.bigint();
   try {
     const { email, password } = req.body;
 
@@ -310,35 +238,21 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    const normalizedEmail = email.toLowerCase();
-    const lookupStartedAt = process.hrtime.bigint();
-    const user = await User.findOne({ email: normalizedEmail }).select("name email password role mustChangePassword").lean();
-    console.info("[CareIT Perf] login:user-lookup", JSON.stringify({
-      durationMs: Math.round(Number(process.hrtime.bigint() - lookupStartedAt) / 1e6)
-    }));
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(400).json({ message: "User not found" });
     }
 
-    const verificationStartedAt = process.hrtime.bigint();
     const match = await bcrypt.compare(password, user.password);
-    console.info("[CareIT Perf] login:password-verify", JSON.stringify({
-      durationMs: Math.round(Number(process.hrtime.bigint() - verificationStartedAt) / 1e6)
-    }));
     if (!match) {
       return res.status(400).json({ message: "Wrong password" });
     }
 
-    const tokenStartedAt = process.hrtime.bigint();
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "secret123",
       { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
-    console.info("[CareIT Perf] login:token-created", JSON.stringify({
-      durationMs: Math.round(Number(process.hrtime.bigint() - tokenStartedAt) / 1e6),
-      totalDurationMs: Math.round(Number(process.hrtime.bigint() - loginStartedAt) / 1e6)
-    }));
 
     res.json({
       message: "Login successful",
@@ -670,8 +584,8 @@ app.post("/api/auth/change-password", auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!newPassword) {
-      return res.status(400).json({ message: "New password is required" });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current and new password are required" });
     }
 
     if (newPassword.length < 6) {
@@ -683,14 +597,9 @@ app.post("/api/auth/change-password", auth, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (!user.mustChangePassword) {
-      if (!currentPassword) {
-        return res.status(400).json({ message: "Current password is required" });
-      }
-      const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password);
-      if (!currentPasswordMatches) {
-        return res.status(400).json({ message: "Current password is incorrect" });
-      }
+    const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password);
+    if (!currentPasswordMatches) {
+      return res.status(400).json({ message: "Current password is incorrect" });
     }
 
     user.password = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_ROUNDS || 10));
@@ -833,8 +742,6 @@ const assetSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-assetSchema.index({ createdAt: -1 });
-assetSchema.index({ status: 1, category: 1 });
 const Asset = mongoose.model("Asset", assetSchema);
 
 const returnedAssetSchema = new mongoose.Schema({
@@ -891,18 +798,6 @@ app.post("/api/assets", auth, adminOnly, async (req, res) => {
 app.get("/api/assets", auth, async (req, res) => {
   try {
     const assets = await Asset.find().sort({ createdAt: -1 });
-    res.json(assets);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-app.get("/api/dashboard/assets", auth, async (req, res) => {
-  try {
-    const assets = await Asset.find()
-      .select("assetTag category brand model serialNumber status assignedTo department location condition generation processor ram ssd returnInfo")
-      .sort({ createdAt: -1 })
-      .lean();
     res.json(assets);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -968,30 +863,6 @@ app.delete("/api/assets/:id", auth, adminOnly, async (req, res) => {
 /* =========================
    IMPORT EXCEL
 ========================= */
-const normalizeImportHeader = value => String(value || '')
-  .normalize('NFKD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, ' ')
-  .trim();
-
-const normalizeImportValue = (value, allowed, aliases = {}) => {
-  const text = String(value || '').trim();
-  if (!text) return undefined;
-  const alias = aliases[normalizeImportHeader(text)] || text;
-  return allowed.find(item => normalizeImportHeader(item) === normalizeImportHeader(alias)) || alias;
-};
-
-const importColumn = (colMap, names, fallback) => {
-  for (const name of names) {
-    const col = colMap[normalizeImportHeader(name)];
-    if (col) return col;
-  }
-  return fallback;
-};
-
-const generateImportIdentifier = (prefix) => `${prefix}-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-
 app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -1007,94 +878,44 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
     let errorCount = 0;
     const errors = [];
 
-    let headerRowNumber = 1;
-    worksheet.eachRow((row, rowNumber) => {
-      const rowHeaders = row.values.map(value => normalizeImportHeader(value)).filter(Boolean);
-      if (rowHeaders.includes('staff name') || rowHeaders.includes('asset tag') || rowHeaders.includes('laptop asset tag no')) {
-        headerRowNumber = rowNumber;
-      }
-    });
-    const headerRow = worksheet.getRow(headerRowNumber);
+    const headerRow = worksheet.getRow(1);
     const colMap = {};
     headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      const header = normalizeImportHeader(cell.value);
+      const header = cell.value?.toString().trim().toLowerCase().replace(/\s+/g, ' ') || '';
       colMap[header] = colNumber;
     });
 
-    const colAssetTag = importColumn(colMap, ['Asset Tag', 'Asset ID', 'Asset Number', 'Tag', 'Inventory Number'], 1);
-    const colCategory = importColumn(colMap, ['Category', 'Asset Type', 'Equipment Type', 'Item Type'], 2);
-    const colBrand = importColumn(colMap, ['Brand', 'Manufacturer', 'Make'], 3);
-    const colModel = importColumn(colMap, ['Model', 'Product Model'], 4);
-    const colSerial = importColumn(colMap, ['Serial Number', 'Serial No', 'Serial', 'SN'], 5);
-    const colGeneration = importColumn(colMap, ['Generation', 'Gen', 'CPU Gen', 'Processor Gen'], 6);
-    const colProcessor = importColumn(colMap, ['Processor', 'CPU', 'Chip'], 7);
-    const colRAM = importColumn(colMap, ['RAM', 'Memory', 'RAM Memory'], 8);
-    const colSSD = importColumn(colMap, ['SSD', 'Storage', 'Disk', 'Hard Disk', 'HDD'], 9);
-    const colPurchaseDate = importColumn(colMap, ['Purchase Date', 'Date Purchased', 'Acquisition Date'], 10);
-    const colPurchasePrice = importColumn(colMap, ['Purchase Price', 'Price', 'Cost', 'Value'], 11);
-    const colStatus = importColumn(colMap, ['Status', 'Asset Status'], 12);
-    const colDepartment = importColumn(colMap, ['Department', 'Dept', 'Team', 'Unit'], 13);
-    const colLocation = importColumn(colMap, ['Location', 'Office', 'Site', 'Station'], 14);
-    const colAssignedTo = importColumn(colMap, ['Assigned To', 'Assignee', 'Staff Name', 'Staff', 'Owner', 'User'], 15);
-    const colReturnedBy = importColumn(colMap, ['Returned By', 'Returner', 'Returned By Name'], 16);
-    const colReturnDate = importColumn(colMap, ['Return Date', 'Date Returned', 'Returned Date'], 17);
-    const colCondition = importColumn(colMap, ['Condition', 'Asset Condition'], 18);
-    const colLaptopModel = importColumn(colMap, ['Laptop Model'], null);
-    const colLaptopSerial = importColumn(colMap, ['Laptop Serial No', 'Laptop Serial Number'], null);
-    const colLaptopTag = importColumn(colMap, ['Laptop CARE Asset Tag No', 'Laptop Asset Tag No', 'Laptop Asset Tag'], null);
-    const colPhoneModel = importColumn(colMap, ['Mobile Phone', 'Mobile Phone Model', 'Phone Model'], null);
-    const colPhoneSerial = importColumn(colMap, ['Mobile No', 'Mobile Phone No', 'Phone Number'], null);
-    const colPhoneTag = importColumn(colMap, ['Mobile Phone Asset Tag No', 'Mobile Phone Asset Tag', 'Phone Asset Tag'], null);
-    const hasSeparateDeviceColumns = Boolean(colLaptopTag && colPhoneTag && (colLaptopModel || colPhoneModel));
+    const getCol = (names) => {
+      for (const name of names) {
+        const key = name.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (colMap[key]) return colMap[key];
+      }
+      return null;
+    };
 
-    const categoryAliases = { laptop: 'Laptops', phone: 'Mobile Phones', 'mobile phone': 'Mobile Phones', monitor: 'Monitors', projector: 'Projectors', printer: 'Printers', copier: 'Copiers', tablet: 'Tablets', tv: 'TV', router: 'Network Devices', switch: 'Network Devices' };
-    const statusAliases = { available: 'Available', assigned: 'Assigned', issued: 'Assigned', stored: 'In Storage', storage: 'In Storage', repair: 'Under Repair', faulty: 'Under Repair', lost: 'Lost', disposed: 'Disposed', disposal: 'Aproved for disposal', approved: 'Aproved for disposal' };
-    const conditionAliases = { new: 'New', good: 'Good', ok: 'Good', faulty: 'Faulty', damaged: 'Damaged', ber: 'BER' };
+    const colAssetTag = getCol(['Asset Tag', 'AssetTag', 'Tag']) || 1;
+    const colCategory = getCol(['Category']) || 2;
+    const colBrand = getCol(['Brand']) || 3;
+    const colModel = getCol(['Model']) || 4;
+    const colSerial = getCol(['Serial Number', 'SerialNumber', 'Serial No', 'SN']) || 5;
+    const colGeneration = getCol(['Generation', 'Gen', 'CPU Gen', 'Processor Gen']) || 6;
+    const colProcessor = getCol(['Processor', 'CPU', 'Cpu', 'Chip']) || 7;
+    const colRAM = getCol(['RAM', 'Memory', 'Ram Memory']) || 8;
+    const colSSD = getCol(['SSD', 'Storage', 'Disk', 'Hard Disk', 'HDD', 'Ssd']) || 9;
+    const colPurchaseDate = getCol(['Purchase Date', 'PurchaseDate', 'Date Purchased']) || 10;
+    const colPurchasePrice = getCol(['Purchase Price', 'PurchasePrice', 'Price', 'Cost']) || 11;
+    const colStatus = getCol(['Status']) || 12;
+    const colDepartment = getCol(['Department', 'Dept']) || 13;
+    const colLocation = getCol(['Location']) || 14;
+    const colAssignedTo = getCol(['Assigned To', 'AssignedTo', 'Assignee', 'Staff Name', 'Owner']) || 15;
+    const colReturnedBy = getCol(['Returned By', 'ReturnedBy', 'Returner', 'Returned By Name']) || 16;
+    const colReturnDate = getCol(['Return Date', 'ReturnDate', 'Date Returned', 'Returned Date']) || 17;
+    const colCondition = getCol(['Condition']) || 18;
 
     worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber <= headerRowNumber) return;
+      if (rowNumber === 1) return;
 
       try {
-        if (hasSeparateDeviceColumns) {
-          const cellText = column => column ? row.getCell(column).value?.toString().trim() : undefined;
-          const normalizeAssetTag = value => {
-            if (!value || /not\s*visible|n\/a|none/i.test(value)) return undefined;
-            const digits = value.replace(/[^0-9]/g, '');
-            return digits ? digits.padStart(6, '0').toUpperCase() : value.toUpperCase();
-          };
-          const optionalText = value => value && !/^(n\/a|not\s*visible|none|-)$/i.test(value) ? value : undefined;
-          const normalizeLocation = value => {
-            if (!value) return undefined;
-            if (/^kisumu\b/i.test(value)) return "Kisumu";
-            if (/^migori\b/i.test(value)) return "Migori";
-            if (/^nairobi\b/i.test(value)) return "Nairobi";
-            return value;
-          };
-          const assignedTo = cellText(colAssignedTo);
-          const common = {
-            assignedTo,
-            department: cellText(colDepartment),
-            location: normalizeLocation(cellText(colLocation)),
-            status: assignedTo ? "Assigned" : "Available",
-            condition: normalizeImportValue(cellText(colCondition), ["New", "Good", "Faulty", "BER", "Damaged"], conditionAliases) || "Good"
-          };
-          const devices = [
-            { tag: normalizeAssetTag(cellText(colLaptopTag)), category: "Laptops", model: optionalText(cellText(colLaptopModel)), serialNumber: optionalText(cellText(colLaptopSerial)) },
-            { tag: normalizeAssetTag(cellText(colPhoneTag)), category: "Mobile Phones", model: optionalText(cellText(colPhoneModel)), serialNumber: optionalText(cellText(colPhoneSerial)) }
-          ];
-          devices.forEach(device => {
-            if (device.tag || device.model || device.serialNumber) {
-              assets.push({
-                ...common,
-                ...device,
-                assetTag: device.tag || generateImportIdentifier("AUTO-TAG"),
-                serialNumber: device.serialNumber || generateImportIdentifier("AUTO-SERIAL")
-              });
-            }
-          });
-          return;
-        }
-
         const rawDate = row.getCell(colPurchaseDate).value;
         let purchaseDate = rawDate;
         if (rawDate instanceof Date) {
@@ -1126,7 +947,7 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
 
         const assetData = {
           assetTag: row.getCell(colAssetTag).value?.toString().toUpperCase().trim(),
-          category: normalizeImportValue(row.getCell(colCategory).value, ["Laptops", "Mobile Phones", "Monitors", "Projectors", "TV", "Printers", "Copiers", "Network Devices", "Tablets"], categoryAliases),
+          category: row.getCell(colCategory).value?.toString().trim(),
           brand: row.getCell(colBrand).value?.toString().trim(),
           model: row.getCell(colModel).value?.toString().trim(),
           serialNumber: row.getCell(colSerial).value?.toString().trim(),
@@ -1136,11 +957,11 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
           ssd: row.getCell(colSSD).value?.toString().trim(),
           purchaseDate: purchaseDate,
           purchasePrice: purchasePrice,
-          status: normalizeImportValue(row.getCell(colStatus).value, ["Available", "Assigned", "In Storage", "Under Repair", "Lost", "Aproved for disposal", "Disposed"], statusAliases) || "Available",
+          status: row.getCell(colStatus).value?.toString().trim() || "Available",
           department: row.getCell(colDepartment).value?.toString().trim(),
           location: row.getCell(colLocation).value?.toString().trim(),
           assignedTo: row.getCell(colAssignedTo).value?.toString().trim(),
-          condition: normalizeImportValue(row.getCell(colCondition).value, ["New", "Good", "Faulty", "BER", "Damaged"], conditionAliases) || "Good",
+          condition: row.getCell(colCondition).value?.toString().trim() || "Good",
         };
 
         const returnedByVal = row.getCell(colReturnedBy).value?.toString().trim();
@@ -1211,141 +1032,6 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
   } catch (err) {
     console.error("Import Error:", err);
     res.status(500).json({ message: err.message || "Import failed" });
-  }
-});
-
-/* =========================
-   IMPORT IMAGE WITH OCR
-========================= */
-app.post("/api/import/image", auth, adminOnly, imageUpload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "No image uploaded" });
-
-  let worker;
-  try {
-    worker = await createWorker("eng");
-    const { data } = await worker.recognize(req.file.buffer);
-    const lines = data.text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const assets = [];
-    const errors = [];
-    const categories = ["Laptops", "Mobile Phones", "Monitors", "Projectors", "TV", "Printers", "Copiers", "Network Devices", "Tablets"];
-    const categoryPattern = new RegExp(categories.map(value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
-    const spreadsheetScreenshot = /laptop\s+model/i.test(data.text) && /mobile\s+phone/i.test(data.text);
-
-    lines.forEach((line, index) => {
-      const columns = line.split(/\t+|\s{2,}|\|/).map(value => value.trim()).filter(Boolean);
-      if (columns.length < 2) return;
-
-      if (spreadsheetScreenshot) {
-        const assetTags = [...line.matchAll(/\b\d{6}\b/g)].map(match => match[0]);
-        if (!assetTags.length) return;
-
-        const nameMatch = line.match(/^\d+\s+([A-Za-z][A-Za-z'-]+\s+[A-Za-z][A-Za-z'-]+)/);
-        const assignedTo = nameMatch ? nameMatch[1] : undefined;
-        const laptopModelMatch = line.match(/\b(Dell|HP|Lenovo|Acer|Apple|Asus|Microsoft)\s+([A-Za-z0-9-]+(?:\s+[A-Za-z0-9-]+)?)/i);
-        const phoneMatch = line.match(/\b(Samsung|Oppo|Apple|Tecno|Infinix|Nokia|Huawei)\s*([A-Za-z0-9-]*)/i);
-
-        assets.push({
-          assetTag: assetTags[0],
-          category: "Laptops",
-          brand: laptopModelMatch ? laptopModelMatch[1] : undefined,
-          model: laptopModelMatch ? laptopModelMatch[2] : undefined,
-          assignedTo,
-          status: "Assigned",
-          condition: "Good"
-        });
-
-        if (assetTags[1]) {
-          assets.push({
-            assetTag: assetTags[1],
-            category: "Mobile Phones",
-            brand: phoneMatch ? phoneMatch[1] : undefined,
-            model: phoneMatch ? phoneMatch[2] || undefined : undefined,
-            assignedTo,
-            status: "Assigned",
-            condition: "Good"
-          });
-        }
-        return;
-      }
-
-      const categoryMatch = line.match(categoryPattern);
-      const assetTag = columns.find(value => /[A-Z]*[-/]?\d{3,}/i.test(value));
-      if (!assetTag || !categoryMatch) {
-        errors.push(`OCR line ${index + 1}: Could not confidently identify an asset tag and category`);
-        return;
-      }
-
-      const category = normalizeImportValue(categoryMatch[0], categories, {
-        laptop: "Laptops", phone: "Mobile Phones", monitor: "Monitors", projector: "Projectors",
-        printer: "Printers", copier: "Copiers", tablet: "Tablets", tv: "TV"
-      });
-      const tagIndex = columns.indexOf(assetTag);
-      const categoryIndex = columns.findIndex(value => value.toLowerCase().includes(categoryMatch[0].toLowerCase()));
-      const remaining = columns.filter((_, columnIndex) => columnIndex !== tagIndex && columnIndex !== categoryIndex);
-
-      assets.push({
-        assetTag: assetTag.toUpperCase(),
-        category,
-        brand: remaining[0],
-        model: remaining[1],
-        serialNumber: remaining[2],
-        assignedTo: remaining.find(value => /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(value)),
-        status: "Available",
-        condition: "Good"
-      });
-    });
-
-    if (spreadsheetScreenshot && assets.length === 0) {
-      const detectedTags = [...data.text.matchAll(/\b\d{6}\b/g)]
-        .map(match => match[0])
-        .filter((tag, index, allTags) => allTags.indexOf(tag) === index);
-
-      for (let index = 0; index < detectedTags.length; index += 2) {
-        assets.push({
-          assetTag: detectedTags[index],
-          category: "Laptops",
-          status: "Assigned",
-          condition: "Good"
-        });
-        if (detectedTags[index + 1]) {
-          assets.push({
-            assetTag: detectedTags[index + 1],
-            category: "Mobile Phones",
-            status: "Assigned",
-            condition: "Good"
-          });
-        }
-      }
-    }
-
-    let importedCount = 0;
-    if (assets.length) {
-      try {
-        const result = await Asset.insertMany(assets, { ordered: false });
-        importedCount = result.length;
-      } catch (err) {
-        if (err.code === 11000) {
-          importedCount = err.insertedCount || 0;
-          errors.push(`${assets.length - importedCount} OCR assets had duplicate Asset Tags`);
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    res.json({
-      message: "Image scan completed",
-      importedCount,
-      errorCount: errors.length,
-      errors: errors.length ? errors : undefined,
-      extractedText: data.text,
-      totalProcessed: importedCount + errors.length
-    });
-  } catch (err) {
-    console.error("Image import error:", err);
-    res.status(500).json({ message: err.message || "Image scan failed" });
-  } finally {
-    if (worker) await worker.terminate();
   }
 });
 
@@ -1886,22 +1572,21 @@ app.get("/api/export/pdf", auth, async (req, res) => {
     };
 
     const drawTableHeader = () => {
-      const headerTop = doc.y;
       let x = doc.page.margins.left;
       doc.font("Times-Bold").fontSize(fontSize).fillColor("#FFFFFF");
       ASSET_EXPORT_COLUMNS.forEach((column, index) => {
         const width = columnWidths[index];
-        doc.save().rect(x, headerTop, width, headerHeight).fill("#2F5496").restore();
-        doc.fillColor("#FFFFFF").text(column.header, x + 3, headerTop + 7, {
+        doc.save().rect(x, doc.y, width, headerHeight).fill("#2F5496").restore();
+        doc.fillColor("#FFFFFF").text(column.header, x + 3, doc.y + 7, {
           width: width - 6,
           height: headerHeight - 6,
           ellipsis: true,
           lineBreak: false,
         });
-        doc.rect(x, headerTop, width, headerHeight).stroke("#95B3D7");
+        doc.rect(x, doc.y - headerHeight, width, headerHeight).stroke("#95B3D7");
         x += width;
       });
-      doc.y = headerTop + headerHeight;
+      doc.y += headerHeight;
     };
 
     doc.font("Times-Bold").fontSize(16).fillColor("#1F2937").text("CARE IT ASSET REPORT", { align: "center" });

@@ -45,7 +45,7 @@ if not errorlevel 1 (
     set "COMMIT_DONE=1"
 )
 if "%COMMIT_DONE%"=="0" (
-    git --no-optional-locks add server.js package.json package-lock.json
+    git --no-optional-locks add server.js
     if errorlevel 1 ( echo       git add failed & pause & exit /b 1 )
     git -c core.logAllRefUpdates=false -c core.appendAtomically=false commit --no-optional-locks -m "%BACKEND_COMMIT_MSG%"
     if errorlevel 1 (

@@ -2,7 +2,7 @@
 // CONFIGURATION
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
-const API_TIMEOUT = 15000; // 15 seconds
+const API_TIMEOUT = 15000;
 
 // ========================================
 // STATE MANAGEMENT
@@ -14,12 +14,6 @@ let locationChart = null;
 let departmentChart = null;
 let resetEmail = null; // For password reset flow
 let selectedAssetIds = [];
-
-function perfLog(event, details = {}) {
-    try {
-        console.info('[CareIT Perf]', event, { at: Math.round(performance.now()), ...details });
-    } catch (e) {}
-}
 
 function isDarkMode() {
     return localStorage.getItem('careit_dark_mode') === 'true';
@@ -66,8 +60,6 @@ function animateCount(elementId, target, duration = 900) {
 // API CALL HELPER
 // ========================================
 async function apiCall(endpoint, method = 'GET', data = null) {
-    const requestStartedAt = performance.now();
-    perfLog('api:start', { endpoint, method });
     const token = localStorage.getItem('token');
     const headers = {
         'Content-Type': 'application/json',
@@ -92,7 +84,6 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
         const response = await fetch(`${API_URL}${endpoint}`, { ...options, signal: controller.signal });
-        perfLog('api:response', { endpoint, method, status: response.status, durationMs: Math.round(performance.now() - requestStartedAt) });
 
         if (response.status === 401) {
             localStorage.removeItem('token');
@@ -136,7 +127,6 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         throw error;
     } finally {
         if (timeoutId) clearTimeout(timeoutId);
-        perfLog('api:end', { endpoint, method, durationMs: Math.round(performance.now() - requestStartedAt) });
     }
 }
 
@@ -214,6 +204,11 @@ function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('userRole');
+    const loginBtn = document.getElementById('userLoginBtn');
+    if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+    }
     switchPage('userLoginPage');
 }
 
@@ -239,6 +234,14 @@ function switchPage(pageId, options = {}) {
     const page = document.getElementById(pageId);
     if (page) {
         page.style.display = 'block';
+    }
+
+    if (pageId === 'userLoginPage') {
+        const loginBtn = document.getElementById('userLoginBtn');
+        if (loginBtn) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Sign In';
+        }
     }
 
     if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
@@ -327,7 +330,7 @@ function renderHeaderActions() {
 
     if (['admin', 'superadmin'].includes(userRole)) {
         actionsHTML = '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>';
-        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel or Image</button>';
+        actionsHTML += '<button class="btn btn-secondary" onclick="openImportModal()">Import Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="switchPage(\'usersPage\')">Users / Ops</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
@@ -372,7 +375,7 @@ async function handleUserLogin(event) {
 
         if (response.user.mustChangePassword) {
             showMessage('userLoginMessage', 'Temporary password accepted. Please choose a new password.', 'success', 1500);
-            setTimeout(() => switchPage('changePasswordPage'), 1500);
+                setTimeout(() => switchPage('changePasswordPage'), 1500);
             return;
         }
 
@@ -487,7 +490,6 @@ async function handleResetPassword(event) {
 async function handleChangePassword(event) {
     event.preventDefault();
 
-    const currentPassword = document.getElementById('currentPassword').value;
     const newPassword = document.getElementById('changeNewPassword').value;
     const confirmPassword = document.getElementById('changeConfirmPassword').value;
     const btn = document.getElementById('changePasswordBtn');
@@ -505,7 +507,7 @@ async function handleChangePassword(event) {
     try {
         btn.disabled = true;
         btn.textContent = 'Changing...';
-        await apiCall('/auth/change-password', 'POST', { currentPassword, newPassword });
+        await apiCall('/auth/change-password', 'POST', { newPassword });
         showMessage('changePasswordMessage', 'Password changed successfully. Redirecting...', 'success', 1500);
         setTimeout(() => {
             document.getElementById('changePasswordForm').reset();
@@ -1637,7 +1639,7 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
         updateBulkActionsBar();
         return;
     }
@@ -1654,6 +1656,7 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
+
         return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
@@ -1869,7 +1872,7 @@ function renderAssignmentItemDetails(selector, containerId) {
             '<div class="grid grid-2"><div class="form-group"><label>Generation</label><input data-assignment-type="' + key + '" data-assignment-field="generation" type="text" placeholder="e.g., 12th Gen"></div><div class="form-group"><label>Processor</label><input data-assignment-type="' + key + '" data-assignment-field="processor" type="text" placeholder="e.g., Intel Core i5"></div><div class="form-group"><label>RAM</label><input data-assignment-type="' + key + '" data-assignment-field="ram" type="text" placeholder="e.g., 16GB"></div><div class="form-group"><label>SSD</label><input data-assignment-type="' + key + '" data-assignment-field="ssd" type="text" placeholder="e.g., 512GB"></div></div>' : '';
         const mobileFields = ['Phone', 'Tablet'].includes(type) ?
             '<div class="form-group"><label>IMEI / Identifier</label><input data-assignment-type="' + key + '" data-assignment-field="imei" type="text" placeholder="IMEI or device identifier"></div>' : '';
-        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Asset Tag</label><input data-assignment-type="' + key + '" data-assignment-field="assetTag" type="text" placeholder="Asset tag"></div><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
+        return '<div style="margin-top:12px; padding:14px; border:1px solid #dbe3ee; border-radius:6px; background:#f8fafc;"><strong>' + type + ' Details</strong><div class="grid grid-2" style="margin-top:10px;"><div class="form-group"><label>Description</label><input data-assignment-type="' + key + '" data-assignment-field="description" type="text" placeholder="Describe this ' + type.toLowerCase() + '"></div><div class="form-group"><label>Brand</label><input data-assignment-type="' + key + '" data-assignment-field="brand" type="text" placeholder="e.g., Dell, Samsung, Apple"></div><div class="form-group"><label>Model</label><input data-assignment-type="' + key + '" data-assignment-field="model" type="text" placeholder="Model"></div><div class="form-group"><label>Serial Number</label><input data-assignment-type="' + key + '" data-assignment-field="serialNumber" type="text" placeholder="Serial number"></div></div>' + mobileFields + laptopFields + '</div>';
     }).join('');
 }
 
@@ -2191,13 +2194,12 @@ async function submitImportForm(event) {
         return;
     }
 
-    const isImage = file.type.startsWith('image/');
     const formData = new FormData();
     formData.append('file', file);
 
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(API_URL + (isImage ? '/import/image' : '/import/excel'), {
+        const response = await fetch(API_URL + '/import/excel', {
             method: 'POST',
             headers: {
                 'Authorization': 'Bearer ' + token
@@ -2218,7 +2220,7 @@ async function submitImportForm(event) {
         const result = await response.json();
         let message = 'Import successful! ' + result.importedCount + ' assets imported';
         if (result.errorCount > 0) {
-            message += '. ' + result.errorCount + ' rows need review.';
+            message += '. ' + result.errorCount + ' errors occurred.';
         }
 
         showMessage('assetMessage', message, 'success');
