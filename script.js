@@ -2,7 +2,7 @@
 // CONFIGURATION
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
-const API_TIMEOUT = 15000;
+const API_TIMEOUT = 60000;
 
 // ========================================
 // STATE MANAGEMENT
@@ -368,7 +368,7 @@ async function handleUserLogin(event) {
     const loginStartedAt = performance.now();
     perfLog('login:submit');
 
-    const email = document.getElementById('userLoginEmail').value;
+    const email = document.getElementById('userLoginEmail').value.trim();
     const password = document.getElementById('userLoginPassword').value;
     const loginBtn = document.getElementById('userLoginBtn');
 
