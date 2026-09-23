@@ -1,4 +1,5 @@
 const express = require("express");
+const compression = require("compression");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -135,6 +136,7 @@ app.use(cors({
 }));
 
 // Body Parser
+app.use(compression());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -182,10 +184,17 @@ const imageUpload = multer({
    DATABASE
 ========================= */
 mongoose
-  .connect(process.env.MONGODB_URL || "mongodb://127.0.0.1:27017/care_it_asset_management-app", {
+  .connect(process.env.MONGO_URI || process.env.MONGODB_URL || "mongodb://127.0.0.1:27017/care_it_asset_management-app", {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
+    maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 30),
+    minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE || 5),
+    serverSelectionTimeoutMS: Number(
+      process.env.MONGO_SERVER_SELECTION_TIMEOUT || 5000
+    ),
+    socketTimeoutMS: Number(
+      process.env.MONGO_SOCKET_TIMEOUT || 45000
+    )
   })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => {
