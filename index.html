@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CARE IT Asset Management System</title>
-    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260922a">
-    <link rel="stylesheet" href="style.css?v=20260922a">
+    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260929a">
+    <link rel="stylesheet" href="style.css?v=20260929a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -792,6 +792,93 @@
 
             <div id="assetMessage" class="alert" style="display: none;"></div>
 
+            <!-- Export Options -->
+            <div class="card" style="padding: 16px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; color: #1e293b;">Export Options</h3>
+                    <span style="font-size: 13px; color: #64748b;">Choose filters to export a subset of assets (leave empty to export all)</span>
+                </div>
+                <div class="filters" style="margin: 0; padding: 0; background: transparent; box-shadow: none; flex-wrap: wrap;">
+                    <select id="exportLocationFilter">
+                        <option value="">All Locations</option>
+                        <option value="Regional Office">Regional Office</option>
+                        <option value="Nairobi">Nairobi</option>
+                        <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                        <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                        <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                        <option value="RMU Stores">RMU Stores</option>
+                        <option value="Kisumu">Kisumu</option>
+                        <option value="Migori">Migori</option>
+                        <option value="Busia">Busia</option>
+                        <option value="Nakuru">Nakuru</option>
+                        <option value="Kajiado">Kajiado</option>
+                        <option value="Garissa">Garissa</option>
+                        <option value="Dadaab">Dadaab</option>
+                        <option value="Dadaab-DMO">Dadaab-DMO</option>
+                        <option value="IFO">IFO</option>
+                        <option value="Hagadera">Hagadera</option>
+                        <option value="Dagahaley">Dagahaley</option>
+                    </select>
+
+                    <select id="exportDepartmentFilter">
+                        <option value="">All Departments</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Administration & Logistics">Administration & Logistics</option>
+                        <option value="Procurement">Procurement</option>
+                        <option value="IT">IT</option>
+                        <option value="Communications">Communications</option>
+                        <option value="Programs">Programs</option>
+                        <option value="KE/Programs">KE/Programs</option>
+                        <option value="CASCADE">CASCADE</option>
+                        <option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option>
+                        <option value="KRAPID+">KRAPID+</option>
+                        <option value="MOFA">MOFA</option>
+                        <option value="C2C">C2C</option>
+                        <option value="Sowing Change">Sowing Change</option>
+                        <option value="SHE SOARS">SHE SOARS</option>
+                        <option value="CSDW">CSDW</option>
+                        <option value="EXECUTIVE">EXECUTIVE</option>
+                        <option value="Security">Security</option>
+                        <option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option>
+                        <option value="Programs & Fund raising">Programs & Fund raising</option>
+                        <option value="Risk and Compliance">Risk and Compliance</option>
+                        <option value="ESA">ESA</option>
+                        <option value="Human Resource">Human Resource</option>
+                        <option value="Private sector Engagement">Private sector Engagement</option>
+                        <option value="Project Driver">Project Driver</option>
+                    </select>
+
+                    <select id="exportCategoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="Laptops">Laptops</option>
+                        <option value="Mobile Phones">Mobile Phones</option>
+                        <option value="Monitors">Monitors</option>
+                        <option value="Projectors">Projectors</option>
+                        <option value="TV">TV</option>
+                        <option value="Printers">Printers</option>
+                        <option value="Copiers">Copiers</option>
+                        <option value="Network Devices">Network Devices</option>
+                        <option value="Tablets">Tablets</option>
+                    </select>
+
+                    <select id="exportStatusFilter">
+                        <option value="">All Statuses</option>
+                        <option value="Available">Available</option>
+                        <option value="Assigned">Assigned</option>
+                        <option value="In Storage">In Storage</option>
+                        <option value="Under Repair">Under Repair</option>
+                        <option value="Lost">Lost</option>
+                        <option value="Aproved for disposal">Aproved for disposal</option>
+                        <option value="Disposed">Disposed</option>
+                    </select>
+
+                    <button type="button" class="btn btn-secondary btn-small" onclick="exportFilteredExcel()">📥 Export Excel</button>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="exportFilteredPdf()">📄 Export PDF</button>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="clearExportFilters()">✕ Clear Export Filters</button>
+                </div>
+            </div>
+
             <!-- Filters -->
             <div class="filters">
                 <div class="search-box">
@@ -853,6 +940,115 @@
                     <tbody id="assetsTableBody">
                         <tr>
                             <td colspan="11" class="text-center">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Items Page -->
+    <div id="purchaseItemsPage" class="page" style="display: none;">
+        <header class="header" id="headerPurchaseItems"></header>
+
+        <div class="container">
+            <div class="page-header">
+                <h1>Purchase Items</h1>
+                <div class="header-actions" id="purchaseHeaderActions"></div>
+            </div>
+
+            <div id="purchaseMessage" class="alert" style="display: none;"></div>
+
+            <!-- Purchase Filters -->
+            <div class="filters">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="purchaseSearchInput"
+                        placeholder="🔍 Search by Item Tag, Brand, Model, Serial, Supplier, Invoice..."
+                        onkeyup="filterPurchaseItems()"
+                    >
+                </div>
+
+                <select id="purchaseCategoryFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Categories</option>
+                    <option value="Laptops">Laptops</option>
+                    <option value="Mobile Phones">Mobile Phones</option>
+                    <option value="Tablets">Tablets</option>
+                    <option value="Printers">Printers</option>
+                    <option value="Copiers">Copiers</option>
+                    <option value="Toners">Toners</option>
+                    <option value="Network Devices">Network Devices</option>
+                    <option value="Docking Station">Docking Station</option>
+                    <option value="Keyboard Combo/Mouse">Keyboard Combo/Mouse</option>
+                    <option value="Laptop Charger">Laptop Charger</option>
+                </select>
+
+                <select id="purchaseStatusFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Statuses</option>
+                    <option value="In Stock">In Stock</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="Used">Used</option>
+                    <option value="Damaged">Damaged</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+
+                <select id="purchaseLocationFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Locations</option>
+                    <option value="Regional Office">Regional Office</option>
+                    <option value="Nairobi">Nairobi</option>
+                    <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                    <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                    <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                    <option value="RMU Stores">RMU Stores</option>
+                    <option value="Kisumu">Kisumu</option>
+                    <option value="Migori">Migori</option>
+                    <option value="Busia">Busia</option>
+                    <option value="Nakuru">Nakuru</option>
+                    <option value="Kajiado">Kajiado</option>
+                    <option value="Garissa">Garissa</option>
+                    <option value="Dadaab">Dadaab</option>
+                    <option value="Dadaab-DMO">Dadaab-DMO</option>
+                    <option value="IFO">IFO</option>
+                    <option value="Hagadera">Hagadera</option>
+                    <option value="Dagahaley">Dagahaley</option>
+                </select>
+
+                <select id="purchaseConditionFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Conditions</option>
+                    <option value="New">New</option>
+                    <option value="Good">Good</option>
+                    <option value="Faulty">Faulty</option>
+                    <option value="BER">BER</option>
+                    <option value="Damaged">Damaged</option>
+                </select>
+
+                <button type="button" class="btn btn-secondary btn-small" onclick="clearPurchaseFilters()">✕ Clear Filters</button>
+            </div>
+
+            <!-- Purchase Items Table -->
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Tag</th>
+                            <th>Category</th>
+                            <th>Brand / Model</th>
+                            <th>Serial Number</th>
+                            <th>Qty</th>
+                            <th>Purchase Date</th>
+                            <th>Price</th>
+                            <th>Supplier</th>
+                            <th>Invoice #</th>
+                            <th>Status</th>
+                            <th>Location</th>
+                            <th>Condition</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchaseTableBody">
+                        <tr>
+                            <td colspan="13" class="text-center">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1137,6 +1333,147 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260910-import"></script>
+    <!-- Purchase Item Form Modal (Admin Only) -->
+    <div id="purchaseItemModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="purchaseItemModalTitle">Add Purchase Item</h2>
+                <button class="close-btn" onclick="closePurchaseItemModal()">✕</button>
+            </div>
+
+            <form id="purchaseItemForm" onsubmit="submitPurchaseItemForm(event)">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label for="purchaseItemTag">Item Tag *</label>
+                        <input id="purchaseItemTag" type="text" required placeholder="e.g., PUR-001" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseCategory">Category *</label>
+                        <select id="purchaseCategory" required>
+                            <option value="">Select Category</option>
+                            <option value="Laptops">Laptops</option>
+                            <option value="Mobile Phones">Mobile Phones</option>
+                            <option value="Tablets">Tablets</option>
+                            <option value="Printers">Printers</option>
+                            <option value="Copiers">Copiers</option>
+                            <option value="Toners">Toners</option>
+                            <option value="Network Devices">Network Devices</option>
+                            <option value="Docking Station">Docking Station</option>
+                            <option value="Keyboard Combo/Mouse">Keyboard Combo/Mouse</option>
+                            <option value="Laptop Charger">Laptop Charger</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseBrand">Brand</label>
+                        <input id="purchaseBrand" type="text" placeholder="e.g., Dell, HP">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseModel">Model</label>
+                        <input id="purchaseModel" type="text" placeholder="e.g., Inspiron 15">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseSerialNumber">Serial Number</label>
+                        <input id="purchaseSerialNumber" type="text">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseQuantity">Quantity</label>
+                        <input id="purchaseQuantity" type="number" value="1" min="1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseDate">Purchase Date *</label>
+                        <input id="purchaseDate" type="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchasePrice">Purchase Price (KES)</label>
+                        <input id="purchasePrice" type="number" placeholder="Amount">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseSupplier">Supplier</label>
+                        <input id="purchaseSupplier" type="text" placeholder="Vendor name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseInvoiceNumber">Invoice Number</label>
+                        <input id="purchaseInvoiceNumber" type="text">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseStatus">Status *</label>
+                        <select id="purchaseStatus" required>
+                            <option value="In Stock">In Stock</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Used">Used</option>
+                            <option value="Damaged">Damaged</option>
+                            <option value="Disposed">Disposed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseCondition">Condition *</label>
+                        <select id="purchaseCondition" required>
+                            <option value="New">New</option>
+                            <option value="Good">Good</option>
+                            <option value="Faulty">Faulty</option>
+                            <option value="BER">BER</option>
+                            <option value="Damaged">Damaged</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseLocation">Location</label>
+                        <select id="purchaseLocation">
+                            <option value="">Select Location</option>
+                            <option value="Regional Office">Regional Office</option>
+                            <option value="Nairobi">Nairobi</option>
+                            <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                            <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                            <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                            <option value="RMU Stores">RMU Stores</option>
+                            <option value="Kisumu">Kisumu</option>
+                            <option value="Migori">Migori</option>
+                            <option value="Busia">Busia</option>
+                            <option value="Nakuru">Nakuru</option>
+                            <option value="Kajiado">Kajiado</option>
+                            <option value="Garissa">Garissa</option>
+                            <option value="Dadaab">Dadaab</option>
+                            <option value="Dadaab-DMO">Dadaab-DMO</option>
+                            <option value="IFO">IFO</option>
+                            <option value="Hagadera">Hagadera</option>
+                            <option value="Dagahaley">Dagahaley</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseAssignedTo">Assigned To</label>
+                        <input id="purchaseAssignedTo" type="text" placeholder="Employee name">
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label for="purchaseNotes">Notes</label>
+                        <textarea id="purchaseNotes" rows="3" placeholder="Extra details, warranty, or asset conditions"></textarea>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        Save Purchase Item
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closePurchaseItemModal()" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js?v=20260929a"></script>
 </body>
 </html>

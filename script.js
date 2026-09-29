@@ -10,6 +10,8 @@ const API_RETRY_DELAYS = [250, 750];
 // STATE MANAGEMENT
 // ========================================
 let allAssets = [];
+let allPurchaseItems = [];
+let editingPurchaseItemId = null;
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
@@ -306,6 +308,10 @@ function switchPage(pageId, options = {}) {
         renderHeader('headerAssets');
         renderHeaderActions();
         loadAssets();
+    } else if (pageId === 'purchaseItemsPage') {
+        renderHeader('headerPurchaseItems');
+        renderPurchaseHeaderActions();
+        loadPurchaseItems();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
         const adminDate = document.getElementById('adminPanelDate');
@@ -318,10 +324,13 @@ function switchPage(pageId, options = {}) {
 }
 
 function initializeApp() {
+    document.querySelectorAll('.page').forEach(page => {
+        page.style.display = 'none';
+    });
     if (isAuthenticated()) {
         let savedPage = null;
         try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
-        const validPages = ['dashboardPage', 'assetsPage', 'usersPage', 'reportsPage'];
+        const validPages = ['dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
         if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
             switchPage(savedPage);
         } else {
@@ -356,6 +365,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<nav class="header-nav">';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
+    headerHTML += '<a href="#" onclick="switchPage(\'purchaseItemsPage\'); return false;">Purchase Items</a>';
     headerHTML += adminLinkHTML;
     headerHTML += '</nav>';
     headerHTML += '<div class="header-right">';
@@ -393,6 +403,22 @@ function renderHeaderActions() {
     headerActions.innerHTML = actionsHTML;
 }
 
+function renderPurchaseHeaderActions() {
+    const headerActions = document.getElementById('purchaseHeaderActions');
+    if (!headerActions) return;
+
+    const userRole = getUserRole();
+    let actionsHTML = '';
+
+    if (['admin', 'superadmin'].includes(userRole)) {
+        actionsHTML = '<button class="btn btn-primary" onclick="openPurchaseItemModal()">+ Add Purchase Item</button>';
+    }
+    actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchaseExcel()">Export Excel</button>';
+    actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchasePdf()">Export PDF</button>';
+
+    headerActions.innerHTML = actionsHTML;
+}
+
 function toggleMobileMenu() {
     const nav = document.querySelector('.header-nav');
     if (nav) {
@@ -416,7 +442,44 @@ async function handleUserLogin(event) {
         loginBtn.disabled = true;
         loginBtn.textContent = 'Signing in...';
 
-        const response = await apiCall('/auth/login', 'POST', { email, password });
+        warmBackend();
+
+        let response = null;
+        let lastError = null;
+
+        const doLogin = async () => {
+            try {
+                return await apiCall('/auth/login', 'POST', { email, password });
+            } catch (err) {
+                return { __error: err };
+            }
+        };
+
+        response = await doLogin();
+
+        if (response && response.__error) {
+            const msg = (response.__error.message || '').toLowerCase();
+            if (
+                response.__error.message &&
+                (msg.includes('database is waking up') || msg.includes('503') || msg.includes('server error: 503'))
+            ) {
+                showMessage('userLoginMessage', 'Database starting up — retrying automatically…', 'info', 5000);
+                await new Promise(r => setTimeout(r, 4000));
+                const retry = await doLogin();
+                if (retry && retry.__error) {
+                    lastError = retry.__error;
+                    response = null;
+                } else {
+                    response = retry;
+                }
+            } else {
+                lastError = response.__error;
+                response = null;
+            }
+        }
+
+        if (lastError) throw lastError;
+
         perfLog('login:credentials-verified', { durationMs: Math.round(performance.now() - loginStartedAt) });
 
         if (!response || !response.token) {
@@ -620,6 +683,36 @@ async function loadDashboardData() {
     const dashboardStartedAt = performance.now();
     perfLog('dashboard:load-start');
     try {
+        const _totalAssetsValueEl = document.getElementById('totalAssetsValue');
+        if (_totalAssetsValueEl) _totalAssetsValueEl.textContent = 'Loading…';
+        const _totalAssetsEl = document.getElementById('totalAssets');
+        if (_totalAssetsEl) _totalAssetsEl.textContent = '…';
+        const _availableAssetsEl = document.getElementById('availableAssets');
+        if (_availableAssetsEl) _availableAssetsEl.textContent = '…';
+        const _assignedAssetsEl = document.getElementById('assignedAssets');
+        if (_assignedAssetsEl) _assignedAssetsEl.textContent = '…';
+        const _storageAssetsEl = document.getElementById('storageAssets');
+        if (_storageAssetsEl) _storageAssetsEl.textContent = '…';
+        const _repairAssetsEl = document.getElementById('repairAssets');
+        if (_repairAssetsEl) _repairAssetsEl.textContent = '…';
+        const _lostAssetsEl = document.getElementById('lostAssets');
+        if (_lostAssetsEl) _lostAssetsEl.textContent = '…';
+        const _statusWidgetBody = document.getElementById('statusWidgetBody');
+        const _statusTbody = document.getElementById('statusTableBody') || _statusWidgetBody;
+        if (_statusTbody) _statusTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _locationTbody = document.getElementById('locationTableBody');
+        if (_locationTbody) _locationTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _deptTbody = document.getElementById('departmentTableBody');
+        if (_deptTbody) _deptTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _catAllTbody = document.getElementById('categoryAllTableBody');
+        if (_catAllTbody) _catAllTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _healthTbody = document.getElementById('categoryHealthTableBody');
+        if (_healthTbody) _healthTbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading…</td></tr>';
+        const _recentAssetsTbody = document.getElementById('recentAssetsBody');
+        if (_recentAssetsTbody) _recentAssetsTbody.innerHTML = '<tr><td colspan="9" class="text-center">Loading…</td></tr>';
+        const _recentActivityTbody = document.getElementById('recentActivityBody');
+        if (_recentActivityTbody) _recentActivityTbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading…</td></tr>';
+
         // Set dashboard date
         const dateEl = document.querySelector('#dashboardDate span');
         if (dateEl) {
@@ -1023,6 +1116,21 @@ async function loadDashboardData() {
         perfLog('dashboard:interactive', { durationMs: Math.round(performance.now() - dashboardStartedAt), assetCount: assetsData.length });
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
+        const _errStatusWidget = document.getElementById('statusWidgetBody');
+        const _errStatusTbody = document.getElementById('statusTableBody') || _errStatusWidget;
+        if (_errStatusTbody) _errStatusTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errLocationTbody = document.getElementById('locationTableBody');
+        if (_errLocationTbody) _errLocationTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errDeptTbody = document.getElementById('departmentTableBody');
+        if (_errDeptTbody) _errDeptTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errCatAllTbody = document.getElementById('categoryAllTableBody');
+        if (_errCatAllTbody) _errCatAllTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errHealthTbody = document.getElementById('categoryHealthTableBody');
+        if (_errHealthTbody) _errHealthTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errRecentAssetsTbody = document.getElementById('recentAssetsBody');
+        if (_errRecentAssetsTbody) _errRecentAssetsTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errRecentActivityTbody = document.getElementById('recentActivityBody');
+        if (_errRecentActivityTbody) _errRecentActivityTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
     }
 }
 
@@ -1434,22 +1542,24 @@ function hideAdminSection(sectionId) {
 }
 
 async function loadUsers() {
+    const tbody = document.getElementById('usersTableBody');
+    const userTableBody = document.getElementById('userTableBody') || tbody;
+    if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
     try {
         const users = await apiCall('/users', 'GET');
-        const tbody = document.getElementById('usersTableBody');
-        if (!tbody) return;
+        if (!userTableBody) return;
 
         if (!users || !users.length) {
             const count = document.getElementById('adminUserCount');
             if (count) count.textContent = '0';
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
+            userTableBody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
             return;
         }
 
         const count = document.getElementById('adminUserCount');
         if (count) count.textContent = users.length;
 
-        tbody.innerHTML = users.map(user => {
+        userTableBody.innerHTML = users.map(user => {
             const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
             const canEditRole = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
             const canResetPassword = canEditRole;
@@ -1484,6 +1594,7 @@ async function loadUsers() {
         });
     } catch (error) {
         showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
+        if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load users: ' + error.message + '</td></tr>';
     }
 }
 
@@ -1628,9 +1739,16 @@ function drillDownToAssets(filters = {}) {
 }
 
 async function loadAssets() {
+    const tbody = document.getElementById('assetsTableBody');
+    const assetTableBody = document.getElementById('assetTableBody') || tbody;
+    if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">Loading...</td></tr>';
     try {
         allAssets = await apiCall('/assets', 'GET');
-        renderAssetsTable(allAssets);
+        if (!allAssets || allAssets.length === 0) {
+            if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">No assets found</td></tr>';
+        } else {
+            renderAssetsTable(allAssets);
+        }
 
         let dd = null;
         try {
@@ -1674,6 +1792,7 @@ async function loadAssets() {
         }
     } catch (error) {
         showMessage('assetMessage', 'Error loading assets: ' + error.message, 'error', 0);
+        if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center" style="color:#dc2626">Failed to load assets: ' + error.message + '</td></tr>';
     }
 }
 
@@ -2324,6 +2443,383 @@ async function exportToPdf() {
         showMessage('assetMessage', 'PDF file downloaded', 'success');
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+// ========================================
+// PURCHASE ITEMS FUNCTIONS
+// ========================================
+function formatDateDDMM(dateString) {
+    if (!dateString) return '-';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return day + '/' + month + '/' + year;
+}
+
+async function loadPurchaseItems() {
+    const tbody = document.getElementById('purchaseTableBody');
+    const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
+    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">Loading...</td></tr>';
+    try {
+        const searchEl = document.getElementById('purchaseSearchInput');
+        const categoryEl = document.getElementById('purchaseCategoryFilter');
+        const statusEl = document.getElementById('purchaseStatusFilter');
+        const locationEl = document.getElementById('purchaseLocationFilter');
+        const conditionEl = document.getElementById('purchaseConditionFilter');
+        const params = new URLSearchParams();
+        if (searchEl && searchEl.value) params.append('search', searchEl.value);
+        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
+        if (statusEl && statusEl.value) params.append('status', statusEl.value);
+        if (locationEl && locationEl.value) params.append('location', locationEl.value);
+        if (conditionEl && conditionEl.value) params.append('condition', conditionEl.value);
+        const qs = params.toString();
+        const endpoint = '/purchase-items' + (qs ? '?' + qs : '');
+        allPurchaseItems = await apiCall(endpoint, 'GET');
+        if (!allPurchaseItems || allPurchaseItems.length === 0) {
+            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">No purchase items found</td></tr>';
+        } else {
+            renderPurchaseRows(allPurchaseItems);
+        }
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error loading purchase items: ' + error.message, 'error', 0);
+        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
+    }
+}
+
+function filterPurchaseItems() {
+    const searchTerm = (document.getElementById('purchaseSearchInput')?.value || '').toString().toLowerCase().trim();
+    const categoryFilter = document.getElementById('purchaseCategoryFilter')?.value || '';
+    const statusFilter = document.getElementById('purchaseStatusFilter')?.value || '';
+    const locationFilter = document.getElementById('purchaseLocationFilter')?.value || '';
+    const conditionFilter = document.getElementById('purchaseConditionFilter')?.value || '';
+
+    let filtered = allPurchaseItems || [];
+
+    if (searchTerm) {
+        filtered = filtered.filter(item => {
+            const hay = [
+                item.itemTag, item.brand, item.model, item.serialNumber,
+                item.supplier, item.invoiceNumber
+            ].filter(Boolean).join(' ').toLowerCase();
+            return hay.includes(searchTerm);
+        });
+    }
+
+    if (categoryFilter) {
+        filtered = filtered.filter(item =>
+            (item.category || '').toString().trim().toLowerCase() === categoryFilter.toLowerCase()
+        );
+    }
+
+    if (statusFilter) {
+        filtered = filtered.filter(item =>
+            (item.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
+        );
+    }
+
+    if (locationFilter) {
+        filtered = filtered.filter(item =>
+            (item.location || '').toString().trim().toLowerCase() === locationFilter.toLowerCase()
+        );
+    }
+
+    if (conditionFilter) {
+        filtered = filtered.filter(item =>
+            (item.condition || '').toString().trim().toLowerCase() === conditionFilter.toLowerCase()
+        );
+    }
+
+    renderPurchaseRows(filtered);
+}
+
+function clearPurchaseFilters() {
+    ['purchaseSearchInput', 'purchaseCategoryFilter', 'purchaseStatusFilter', 'purchaseLocationFilter', 'purchaseConditionFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    loadPurchaseItems();
+}
+
+function renderPurchaseRows(items) {
+    const tbody = document.getElementById('purchaseTableBody');
+    const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
+    if (!purchaseTableBodyEl) return;
+    const userRole = getUserRole();
+    const isAdminRole = isAdmin();
+
+    if (!items || items.length === 0) {
+        purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center no-data">No purchase items found</td></tr>';
+        return;
+    }
+
+    purchaseTableBodyEl.innerHTML = items.map(item => {
+        const statusBadge = '<span class="badge ' + getStatusBadgeClass(item.status) + '">' + (item.status || '-') + '</span>';
+        const locationVal = item.location || '-';
+        const conditionVal = item.condition || '-';
+        const brandModel = [item.brand, item.model].filter(Boolean).join(' ') || '-';
+
+        let actions = '';
+        if (isAdminRole) {
+            actions = '<button class="btn btn-small btn-secondary" onclick="openPurchaseItemModal(\'' + item._id + '\')" title="Edit">Edit</button> ' +
+                '<button class="btn btn-small btn-danger" onclick="deletePurchaseItem(\'' + item._id + '\')" title="Delete">Delete</button>';
+        }
+
+        return '<tr>' +
+            '<td><strong>' + (item.itemTag || '-') + '</strong></td>' +
+            '<td>' + (item.category || '-') + '</td>' +
+            '<td>' + brandModel + '</td>' +
+            '<td>' + (item.serialNumber || '-') + '</td>' +
+            '<td>' + (item.quantity || 0) + '</td>' +
+            '<td>' + formatDateDDMM(item.purchaseDate) + '</td>' +
+            '<td>' + formatCurrency(item.purchasePrice) + '</td>' +
+            '<td>' + (item.supplier || '-') + '</td>' +
+            '<td>' + (item.invoiceNumber || '-') + '</td>' +
+            '<td>' + statusBadge + '</td>' +
+            '<td>' + locationVal + '</td>' +
+            '<td>' + conditionVal + '</td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+}
+
+async function openPurchaseItemModal(id = null) {
+    if (id && !isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can edit purchase items', 'error');
+        return;
+    }
+    if (!id && !isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can add purchase items', 'error');
+        return;
+    }
+
+    editingPurchaseItemId = id;
+    const form = document.getElementById('purchaseItemForm');
+    const modal = document.getElementById('purchaseItemModal');
+    if (form) {
+        form.reset();
+        const purchaseDateEl = document.getElementById('purchaseItemPurchaseDate');
+        if (purchaseDateEl && !id) {
+            const today = new Date();
+            purchaseDateEl.value = today.toISOString().split('T')[0];
+        }
+    }
+
+    if (id) {
+        try {
+            const item = await apiCall('/purchase-items/' + id, 'GET');
+            if (item && form) {
+                const f = (fieldId, val) => { const el = document.getElementById(fieldId); if (el && val !== undefined && val !== null) el.value = val; };
+                f('purchaseItemTag', item.itemTag);
+                f('purchaseItemCategory', item.category);
+                f('purchaseItemBrand', item.brand);
+                f('purchaseItemModel', item.model);
+                f('purchaseItemSerialNumber', item.serialNumber);
+                f('purchaseItemQuantity', item.quantity);
+                if (item.purchaseDate) f('purchaseItemPurchaseDate', new Date(item.purchaseDate).toISOString().split('T')[0]);
+                f('purchaseItemPurchasePrice', item.purchasePrice);
+                f('purchaseItemSupplier', item.supplier);
+                f('purchaseItemInvoiceNumber', item.invoiceNumber);
+                f('purchaseItemStatus', item.status);
+                f('purchaseItemLocation', item.location);
+                f('purchaseItemCondition', item.condition);
+                f('purchaseItemNotes', item.notes);
+                const titleEl = document.getElementById('purchaseItemModalTitle');
+                if (titleEl) titleEl.textContent = 'Edit Purchase Item';
+            }
+        } catch (error) {
+            showMessage('purchaseMessage', 'Error loading purchase item: ' + error.message, 'error', 0);
+            return;
+        }
+    } else {
+        const titleEl = document.getElementById('purchaseItemModalTitle');
+        if (titleEl) titleEl.textContent = 'Add New Purchase Item';
+    }
+
+    if (modal) modal.style.display = 'flex';
+}
+
+function closePurchaseItemModal() {
+    const modal = document.getElementById('purchaseItemModal');
+    const form = document.getElementById('purchaseItemForm');
+    if (modal) modal.style.display = 'none';
+    if (form) form.reset();
+    editingPurchaseItemId = null;
+}
+
+async function submitPurchaseItemForm(evt) {
+    evt.preventDefault();
+    if (!isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can manage purchase items', 'error');
+        return;
+    }
+
+    const getVal = id => {
+        const el = document.getElementById(id);
+        return el ? el.value : '';
+    };
+
+    const formData = {
+        itemTag: getVal('purchaseItemTag'),
+        category: getVal('purchaseItemCategory'),
+        brand: getVal('purchaseItemBrand'),
+        model: getVal('purchaseItemModel'),
+        serialNumber: getVal('purchaseItemSerialNumber'),
+        quantity: getVal('purchaseItemQuantity') ? Number(getVal('purchaseItemQuantity')) : undefined,
+        purchaseDate: getVal('purchaseItemPurchaseDate'),
+        purchasePrice: getVal('purchaseItemPurchasePrice') ? Number(getVal('purchaseItemPurchasePrice')) : undefined,
+        supplier: getVal('purchaseItemSupplier'),
+        invoiceNumber: getVal('purchaseItemInvoiceNumber'),
+        status: getVal('purchaseItemStatus'),
+        location: getVal('purchaseItemLocation'),
+        condition: getVal('purchaseItemCondition'),
+        notes: getVal('purchaseItemNotes')
+    };
+
+    try {
+        if (editingPurchaseItemId) {
+            await apiCall('/purchase-items/' + editingPurchaseItemId, 'PUT', formData);
+            showMessage('purchaseMessage', 'Purchase item updated successfully', 'success');
+        } else {
+            await apiCall('/purchase-items', 'POST', formData);
+            showMessage('purchaseMessage', 'Purchase item created successfully', 'success');
+        }
+        closePurchaseItemModal();
+        loadPurchaseItems();
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function deletePurchaseItem(id) {
+    if (!isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can delete purchase items', 'error');
+        return;
+    }
+    if (!confirm('Delete this purchase item?')) return;
+
+    try {
+        await apiCall('/purchase-items/' + id, 'DELETE');
+        showMessage('purchaseMessage', 'Purchase item deleted successfully', 'success');
+        loadPurchaseItems();
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+// ========================================
+// FILTERED ASSET EXPORT FUNCTIONS
+// ========================================
+function extractFilenameFromDisposition(contentDisposition, fallback) {
+    if (!contentDisposition) return fallback;
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        try { return decodeURIComponent(utf8Match[1]); } catch (e) {}
+    }
+    const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+    if (match && match[1]) return match[1];
+    return fallback;
+}
+
+async function exportFilteredExcel() {
+    try {
+        const locationEl = document.getElementById('exportLocationFilter');
+        const departmentEl = document.getElementById('exportDepartmentFilter');
+        const categoryEl = document.getElementById('exportCategoryFilter');
+        const statusEl = document.getElementById('exportStatusFilter');
+        const params = new URLSearchParams();
+        if (locationEl && locationEl.value) params.append('location', locationEl.value);
+        if (departmentEl && departmentEl.value) params.append('department', departmentEl.value);
+        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
+        if (statusEl && statusEl.value) params.append('status', statusEl.value);
+        const qs = params.toString();
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/export/excel' + (qs ? '?' + qs : ''), {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'assets.xlsx');
+        downloadFile(blob, filename);
+        showMessage('assetMessage', 'Excel file downloaded', 'success');
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function exportFilteredPdf() {
+    try {
+        const locationEl = document.getElementById('exportLocationFilter');
+        const departmentEl = document.getElementById('exportDepartmentFilter');
+        const categoryEl = document.getElementById('exportCategoryFilter');
+        const statusEl = document.getElementById('exportStatusFilter');
+        const params = new URLSearchParams();
+        if (locationEl && locationEl.value) params.append('location', locationEl.value);
+        if (departmentEl && departmentEl.value) params.append('department', departmentEl.value);
+        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
+        if (statusEl && statusEl.value) params.append('status', statusEl.value);
+        const qs = params.toString();
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/export/pdf' + (qs ? '?' + qs : ''), {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'assets.pdf');
+        downloadFile(blob, filename);
+        showMessage('assetMessage', 'PDF file downloaded', 'success');
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+function clearExportFilters() {
+    ['exportLocationFilter', 'exportDepartmentFilter', 'exportCategoryFilter', 'exportStatusFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+}
+
+// ========================================
+// PURCHASE EXPORT FUNCTIONS
+// ========================================
+async function exportPurchaseExcel() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/purchase-items/export/excel', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'purchase-items.xlsx');
+        downloadFile(blob, filename);
+        showMessage('purchaseMessage', 'Excel file downloaded', 'success');
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function exportPurchasePdf() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/purchase-items/export/pdf', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'purchase-items.pdf');
+        downloadFile(blob, filename);
+        showMessage('purchaseMessage', 'PDF file downloaded', 'success');
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
     }
 }
 
