@@ -2462,47 +2462,31 @@ function formatDateDDMM(dateString) {
 async function loadPurchaseItems() {
     const tbody = document.getElementById('purchaseTableBody');
     const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
-    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">Loading...</td></tr>';
+    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
     try {
-        const searchEl = document.getElementById('purchaseSearchInput');
-        const categoryEl = document.getElementById('purchaseCategoryFilter');
-        const statusEl = document.getElementById('purchaseStatusFilter');
-        const locationEl = document.getElementById('purchaseLocationFilter');
-        const conditionEl = document.getElementById('purchaseConditionFilter');
-        const params = new URLSearchParams();
-        if (searchEl && searchEl.value) params.append('search', searchEl.value);
-        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
-        if (statusEl && statusEl.value) params.append('status', statusEl.value);
-        if (locationEl && locationEl.value) params.append('location', locationEl.value);
-        if (conditionEl && conditionEl.value) params.append('condition', conditionEl.value);
-        const qs = params.toString();
-        const endpoint = '/purchase-items' + (qs ? '?' + qs : '');
-        allPurchaseItems = await apiCall(endpoint, 'GET');
+        allPurchaseItems = await apiCall('/purchase-items', 'GET');
         if (!allPurchaseItems || allPurchaseItems.length === 0) {
-            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">No purchase items found</td></tr>';
+            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center">No purchase items found</td></tr>';
         } else {
             renderPurchaseRows(allPurchaseItems);
         }
     } catch (error) {
         showMessage('purchaseMessage', 'Error loading purchase items: ' + error.message, 'error', 0);
-        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
+        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
     }
 }
 
 function filterPurchaseItems() {
     const searchTerm = (document.getElementById('purchaseSearchInput')?.value || '').toString().toLowerCase().trim();
     const categoryFilter = document.getElementById('purchaseCategoryFilter')?.value || '';
-    const statusFilter = document.getElementById('purchaseStatusFilter')?.value || '';
-    const locationFilter = document.getElementById('purchaseLocationFilter')?.value || '';
-    const conditionFilter = document.getElementById('purchaseConditionFilter')?.value || '';
 
     let filtered = allPurchaseItems || [];
 
     if (searchTerm) {
         filtered = filtered.filter(item => {
             const hay = [
-                item.itemTag, item.brand, item.model, item.serialNumber,
-                item.supplier, item.invoiceNumber
+                item.serialNumber, item.brand, item.model, item.purchasedFor,
+                item.vendor, item.receivedBy
             ].filter(Boolean).join(' ').toLowerCase();
             return hay.includes(searchTerm);
         });
@@ -2514,29 +2498,11 @@ function filterPurchaseItems() {
         );
     }
 
-    if (statusFilter) {
-        filtered = filtered.filter(item =>
-            (item.status || '').toString().trim().toLowerCase() === statusFilter.toLowerCase()
-        );
-    }
-
-    if (locationFilter) {
-        filtered = filtered.filter(item =>
-            (item.location || '').toString().trim().toLowerCase() === locationFilter.toLowerCase()
-        );
-    }
-
-    if (conditionFilter) {
-        filtered = filtered.filter(item =>
-            (item.condition || '').toString().trim().toLowerCase() === conditionFilter.toLowerCase()
-        );
-    }
-
     renderPurchaseRows(filtered);
 }
 
 function clearPurchaseFilters() {
-    ['purchaseSearchInput', 'purchaseCategoryFilter', 'purchaseStatusFilter', 'purchaseLocationFilter', 'purchaseConditionFilter'].forEach(id => {
+    ['purchaseSearchInput', 'purchaseCategoryFilter'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = '';
@@ -2552,16 +2518,11 @@ function renderPurchaseRows(items) {
     const isAdminRole = isAdmin();
 
     if (!items || items.length === 0) {
-        purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center no-data">No purchase items found</td></tr>';
+        purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center no-data">No purchase items found</td></tr>';
         return;
     }
 
     purchaseTableBodyEl.innerHTML = items.map(item => {
-        const statusBadge = '<span class="badge ' + getStatusBadgeClass(item.status) + '">' + (item.status || '-') + '</span>';
-        const locationVal = item.location || '-';
-        const conditionVal = item.condition || '-';
-        const brandModel = [item.brand, item.model].filter(Boolean).join(' ') || '-';
-
         let actions = '';
         if (isAdminRole) {
             actions = '<button class="btn btn-small btn-secondary" onclick="openPurchaseItemModal(\'' + item._id + '\')" title="Edit">Edit</button> ' +
@@ -2569,18 +2530,15 @@ function renderPurchaseRows(items) {
         }
 
         return '<tr>' +
-            '<td><strong>' + (item.itemTag || '-') + '</strong></td>' +
             '<td>' + (item.category || '-') + '</td>' +
-            '<td>' + brandModel + '</td>' +
             '<td>' + (item.serialNumber || '-') + '</td>' +
-            '<td>' + (item.quantity || 0) + '</td>' +
+            '<td>' + (item.brand || '-') + '</td>' +
+            '<td>' + (item.model || '-') + '</td>' +
             '<td>' + formatDateDDMM(item.purchaseDate) + '</td>' +
+            '<td>' + (item.purchasedFor || '-') + '</td>' +
             '<td>' + formatCurrency(item.purchasePrice) + '</td>' +
-            '<td>' + (item.supplier || '-') + '</td>' +
-            '<td>' + (item.invoiceNumber || '-') + '</td>' +
-            '<td>' + statusBadge + '</td>' +
-            '<td>' + locationVal + '</td>' +
-            '<td>' + conditionVal + '</td>' +
+            '<td>' + (item.vendor || '-') + '</td>' +
+            '<td>' + (item.receivedBy || '-') + '</td>' +
             '<td><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
     }).join('');
@@ -2613,20 +2571,15 @@ async function openPurchaseItemModal(id = null) {
             const item = await apiCall('/purchase-items/' + id, 'GET');
             if (item && form) {
                 const f = (fieldId, val) => { const el = document.getElementById(fieldId); if (el && val !== undefined && val !== null) el.value = val; };
-                f('purchaseItemTag', item.itemTag);
                 f('purchaseItemCategory', item.category);
                 f('purchaseItemBrand', item.brand);
                 f('purchaseItemModel', item.model);
                 f('purchaseItemSerialNumber', item.serialNumber);
-                f('purchaseItemQuantity', item.quantity);
                 if (item.purchaseDate) f('purchaseItemPurchaseDate', new Date(item.purchaseDate).toISOString().split('T')[0]);
                 f('purchaseItemPurchasePrice', item.purchasePrice);
-                f('purchaseItemSupplier', item.supplier);
-                f('purchaseItemInvoiceNumber', item.invoiceNumber);
-                f('purchaseItemStatus', item.status);
-                f('purchaseItemLocation', item.location);
-                f('purchaseItemCondition', item.condition);
-                f('purchaseItemNotes', item.notes);
+                f('purchaseItemPurchasedFor', item.purchasedFor);
+                f('purchaseItemVendor', item.vendor);
+                f('purchaseItemReceivedBy', item.receivedBy);
                 const titleEl = document.getElementById('purchaseItemModalTitle');
                 if (titleEl) titleEl.textContent = 'Edit Purchase Item';
             }
@@ -2663,20 +2616,15 @@ async function submitPurchaseItemForm(evt) {
     };
 
     const formData = {
-        itemTag: getVal('purchaseItemTag'),
         category: getVal('purchaseItemCategory'),
         brand: getVal('purchaseItemBrand'),
         model: getVal('purchaseItemModel'),
         serialNumber: getVal('purchaseItemSerialNumber'),
-        quantity: getVal('purchaseItemQuantity') ? Number(getVal('purchaseItemQuantity')) : undefined,
         purchaseDate: getVal('purchaseItemPurchaseDate'),
         purchasePrice: getVal('purchaseItemPurchasePrice') ? Number(getVal('purchaseItemPurchasePrice')) : undefined,
-        supplier: getVal('purchaseItemSupplier'),
-        invoiceNumber: getVal('purchaseItemInvoiceNumber'),
-        status: getVal('purchaseItemStatus'),
-        location: getVal('purchaseItemLocation'),
-        condition: getVal('purchaseItemCondition'),
-        notes: getVal('purchaseItemNotes')
+        purchasedFor: getVal('purchaseItemPurchasedFor'),
+        vendor: getVal('purchaseItemVendor'),
+        receivedBy: getVal('purchaseItemReceivedBy')
     };
 
     try {
@@ -2792,7 +2740,7 @@ function clearExportFilters() {
 async function exportPurchaseExcel() {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(API_URL + '/purchase-items/export/excel', {
+        const response = await fetch(API_URL + '/purchase-export/excel', {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });
@@ -2809,7 +2757,7 @@ async function exportPurchaseExcel() {
 async function exportPurchasePdf() {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(API_URL + '/purchase-items/export/pdf', {
+        const response = await fetch(API_URL + '/purchase-export/pdf', {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });

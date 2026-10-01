@@ -965,7 +965,7 @@
                     <input
                         type="text"
                         id="purchaseSearchInput"
-                        placeholder="🔍 Search by Item Tag, Brand, Model, Serial, Supplier, Invoice..."
+                        placeholder="Search by serial number, brand, model, staff, or vendor..."
                         onkeyup="filterPurchaseItems()"
                     >
                 </div>
@@ -984,45 +984,6 @@
                     <option value="Laptop Charger">Laptop Charger</option>
                 </select>
 
-                <select id="purchaseStatusFilter" onchange="filterPurchaseItems()">
-                    <option value="">All Statuses</option>
-                    <option value="In Stock">In Stock</option>
-                    <option value="Assigned">Assigned</option>
-                    <option value="Used">Used</option>
-                    <option value="Damaged">Damaged</option>
-                    <option value="Disposed">Disposed</option>
-                </select>
-
-                <select id="purchaseLocationFilter" onchange="filterPurchaseItems()">
-                    <option value="">All Locations</option>
-                    <option value="Regional Office">Regional Office</option>
-                    <option value="Nairobi">Nairobi</option>
-                    <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
-                    <option value="Nairobi IT Stores">Nairobi IT Stores</option>
-                    <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
-                    <option value="RMU Stores">RMU Stores</option>
-                    <option value="Kisumu">Kisumu</option>
-                    <option value="Migori">Migori</option>
-                    <option value="Busia">Busia</option>
-                    <option value="Nakuru">Nakuru</option>
-                    <option value="Kajiado">Kajiado</option>
-                    <option value="Garissa">Garissa</option>
-                    <option value="Dadaab">Dadaab</option>
-                    <option value="Dadaab-DMO">Dadaab-DMO</option>
-                    <option value="IFO">IFO</option>
-                    <option value="Hagadera">Hagadera</option>
-                    <option value="Dagahaley">Dagahaley</option>
-                </select>
-
-                <select id="purchaseConditionFilter" onchange="filterPurchaseItems()">
-                    <option value="">All Conditions</option>
-                    <option value="New">New</option>
-                    <option value="Good">Good</option>
-                    <option value="Faulty">Faulty</option>
-                    <option value="BER">BER</option>
-                    <option value="Damaged">Damaged</option>
-                </select>
-
                 <button type="button" class="btn btn-secondary btn-small" onclick="clearPurchaseFilters()">✕ Clear Filters</button>
             </div>
 
@@ -1031,24 +992,21 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Item Tag</th>
                             <th>Category</th>
-                            <th>Brand / Model</th>
                             <th>Serial Number</th>
-                            <th>Qty</th>
+                            <th>Brand</th>
+                            <th>Model</th>
                             <th>Purchase Date</th>
+                            <th>Purchased For</th>
                             <th>Price</th>
-                            <th>Supplier</th>
-                            <th>Invoice #</th>
-                            <th>Status</th>
-                            <th>Location</th>
-                            <th>Condition</th>
+                            <th>Vendor</th>
+                            <th>Received By</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="purchaseTableBody">
                         <tr>
-                            <td colspan="13" class="text-center">Loading...</td>
+                            <td colspan="10" class="text-center">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1344,13 +1302,8 @@
             <form id="purchaseItemForm" onsubmit="submitPurchaseItemForm(event)">
                 <div class="grid grid-2">
                     <div class="form-group">
-                        <label for="purchaseItemTag">Item Tag *</label>
-                        <input id="purchaseItemTag" type="text" required placeholder="e.g., PUR-001" oninput="this.value = this.value.toUpperCase()">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="purchaseCategory">Category *</label>
-                        <select id="purchaseCategory" required>
+                        <label for="purchaseItemCategory">Category *</label>
+                        <select id="purchaseItemCategory" required>
                             <option value="">Select Category</option>
                             <option value="Laptops">Laptops</option>
                             <option value="Mobile Phones">Mobile Phones</option>
@@ -1364,101 +1317,37 @@
                             <option value="Laptop Charger">Laptop Charger</option>
                         </select>
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseBrand">Brand</label>
-                        <input id="purchaseBrand" type="text" placeholder="e.g., Dell, HP">
+                        <label for="purchaseItemSerialNumber">Serial Number</label>
+                        <input id="purchaseItemSerialNumber" type="text">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseModel">Model</label>
-                        <input id="purchaseModel" type="text" placeholder="e.g., Inspiron 15">
+                        <label for="purchaseItemBrand">Brand</label>
+                        <input id="purchaseItemBrand" type="text" placeholder="e.g., Dell, HP">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseSerialNumber">Serial Number</label>
-                        <input id="purchaseSerialNumber" type="text">
+                        <label for="purchaseItemModel">Model</label>
+                        <input id="purchaseItemModel" type="text" placeholder="e.g., Inspiron 15">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseQuantity">Quantity</label>
-                        <input id="purchaseQuantity" type="number" value="1" min="1">
+                        <label for="purchaseItemPurchaseDate">Purchase Date *</label>
+                        <input id="purchaseItemPurchaseDate" type="date" required>
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseDate">Purchase Date *</label>
-                        <input id="purchaseDate" type="date" required>
+                        <label for="purchaseItemPurchasedFor">Staff Purchased For</label>
+                        <input id="purchaseItemPurchasedFor" type="text" placeholder="Staff name">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchasePrice">Purchase Price (KES)</label>
-                        <input id="purchasePrice" type="number" placeholder="Amount">
+                        <label for="purchaseItemPurchasePrice">Purchase Price (KES)</label>
+                        <input id="purchaseItemPurchasePrice" type="number" placeholder="Amount">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseSupplier">Supplier</label>
-                        <input id="purchaseSupplier" type="text" placeholder="Vendor name">
+                        <label for="purchaseItemVendor">Vendor</label>
+                        <input id="purchaseItemVendor" type="text" placeholder="Vendor name">
                     </div>
-
                     <div class="form-group">
-                        <label for="purchaseInvoiceNumber">Invoice Number</label>
-                        <input id="purchaseInvoiceNumber" type="text">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="purchaseStatus">Status *</label>
-                        <select id="purchaseStatus" required>
-                            <option value="In Stock">In Stock</option>
-                            <option value="Assigned">Assigned</option>
-                            <option value="Used">Used</option>
-                            <option value="Damaged">Damaged</option>
-                            <option value="Disposed">Disposed</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="purchaseCondition">Condition *</label>
-                        <select id="purchaseCondition" required>
-                            <option value="New">New</option>
-                            <option value="Good">Good</option>
-                            <option value="Faulty">Faulty</option>
-                            <option value="BER">BER</option>
-                            <option value="Damaged">Damaged</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="purchaseLocation">Location</label>
-                        <select id="purchaseLocation">
-                            <option value="">Select Location</option>
-                            <option value="Regional Office">Regional Office</option>
-                            <option value="Nairobi">Nairobi</option>
-                            <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
-                            <option value="Nairobi IT Stores">Nairobi IT Stores</option>
-                            <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
-                            <option value="RMU Stores">RMU Stores</option>
-                            <option value="Kisumu">Kisumu</option>
-                            <option value="Migori">Migori</option>
-                            <option value="Busia">Busia</option>
-                            <option value="Nakuru">Nakuru</option>
-                            <option value="Kajiado">Kajiado</option>
-                            <option value="Garissa">Garissa</option>
-                            <option value="Dadaab">Dadaab</option>
-                            <option value="Dadaab-DMO">Dadaab-DMO</option>
-                            <option value="IFO">IFO</option>
-                            <option value="Hagadera">Hagadera</option>
-                            <option value="Dagahaley">Dagahaley</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="purchaseAssignedTo">Assigned To</label>
-                        <input id="purchaseAssignedTo" type="text" placeholder="Employee name">
-                    </div>
-
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label for="purchaseNotes">Notes</label>
-                        <textarea id="purchaseNotes" rows="3" placeholder="Extra details, warranty, or asset conditions"></textarea>
+                        <label for="purchaseItemReceivedBy">Received By</label>
+                        <input id="purchaseItemReceivedBy" type="text" placeholder="Receiving person's name">
                     </div>
                 </div>
 
@@ -1474,6 +1363,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260929a"></script>
+    <script src="script.js?v=20261001a"></script>
 </body>
 </html>
