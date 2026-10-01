@@ -1055,7 +1055,7 @@ async function loadDashboardData() {
 
             // 2) Duplicate assetTag / serialNumber check (unique identifier conflicts)
             const tagCounts = {};
-            assetsData.forEach(a => { if (!a.assetTag) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
+            assetsData.forEach(a => { if (!a.assetTag || /^no\s+tag$/i.test(a.assetTag.trim())) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
             const dupTags = Object.entries(tagCounts).filter(([, v]) => v > 1);
             if (dupTags.length > 0) warnings.push('🏷️ ' + dupTags.length + ' duplicate Asset Tags found: ' + dupTags.slice(0, 5).map(([k, v]) => k + '×' + v).join(', ') + (dupTags.length > 5 ? ' …' : ''));
 
