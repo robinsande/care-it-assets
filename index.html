@@ -580,8 +580,8 @@
                         <div class="form-group">
                             <label for="newUserRole">Role *</label>
                             <select id="newUserRole" required>
+                                <option value="viewer" selected>Viewer</option>
                                 <option value="user">User</option>
-                                <option value="viewer">Viewer</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
@@ -592,6 +592,10 @@
                 <div id="adminReturnSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
                     <div class="admin-form-heading"><h2 style="margin-top: 0;">Returned Asset Not in System</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminReturnSection')">Close</button></div>
                     <form id="returnedAssetForm" onsubmit="submitReturnedAsset(event)">
+                        <div class="form-group">
+                            <label for="returnedAssetTag">Asset Tag *</label>
+                            <input id="returnedAssetTag" type="text" placeholder="e.g., LAP001" required>
+                        </div>
                         <div class="form-group">
                             <label for="returnedDescription">Description *</label>
                             <input id="returnedDescription" type="text" placeholder="e.g., Dell charger, HP monitor, projector" required>
@@ -1363,6 +1367,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261001a"></script>
+    <script src="script.js?v=20261002-inventory-permissions"></script>
 </body>
 </html>

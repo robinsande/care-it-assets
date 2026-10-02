@@ -248,6 +248,10 @@ function isAdmin() {
     return ['admin', 'superadmin'].includes(getUserRole());
 }
 
+function canAddRecords() {
+    return ['user', 'admin', 'superadmin'].includes(getUserRole());
+}
+
 function isSuperAdmin() {
     return getUserRole() === 'superadmin';
 }
@@ -353,7 +357,7 @@ function renderHeader(headerId = 'header') {
     const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
 
     let adminLinkHTML = '';
-    if (['admin', 'superadmin'].includes(userRole)) {
+    if (isAdmin()) {
         adminLinkHTML = '<a href="#" onclick="switchPage(\'usersPage\'); return false;">Admin Panel</a>';
     }
 
@@ -396,7 +400,8 @@ function renderHeaderActions() {
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     } else {
-        actionsHTML = '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
+        actionsHTML = canAddRecords() ? '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>' : '';
+        actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     }
 
@@ -410,7 +415,7 @@ function renderPurchaseHeaderActions() {
     const userRole = getUserRole();
     let actionsHTML = '';
 
-    if (['admin', 'superadmin'].includes(userRole)) {
+    if (canAddRecords()) {
         actionsHTML = '<button class="btn btn-primary" onclick="openPurchaseItemModal()">+ Add Purchase Item</button>';
     }
     actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchaseExcel()">Export Excel</button>';
@@ -1604,8 +1609,8 @@ function openUserCreateModal() {
     const roleSelect = document.getElementById('newUserRole');
     if (roleSelect) {
         const isSuper = isSuperAdmin();
-        roleSelect.innerHTML = '<option value="user">User</option>' +
-            '<option value="viewer">Viewer</option>' +
+        roleSelect.innerHTML = '<option value="viewer">Viewer</option>' +
+            '<option value="user">User</option>' +
             '<option value="admin">Admin</option>' +
             (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
     }
@@ -1679,6 +1684,7 @@ async function submitReturnedAsset(event) {
     }
 
     const payload = {
+        assetTag: document.getElementById('returnedAssetTag').value.trim(),
         description: document.getElementById('returnedDescription').value,
         category: document.getElementById('returnedCategory').value,
         brand: document.getElementById('returnedBrand').value,
@@ -1693,7 +1699,7 @@ async function submitReturnedAsset(event) {
 
     try {
         await apiCall('/returned-assets', 'POST', payload);
-        showMessage('usersMessage', 'Returned item recorded successfully', 'success');
+        showMessage('usersMessage', 'Returned item recorded and added to the asset list', 'success');
         document.getElementById('returnedAssetForm').reset();
     } catch (error) {
         showMessage('usersMessage', error.message || 'Unable to record returned item', 'error', 0);
@@ -1810,7 +1816,7 @@ function renderAssetsTable(assets) {
         const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
         let actionButtons = '<button class="btn btn-small btn-secondary" onclick="viewAssetDetails(\'' + asset._id + '\')" title="View">View</button>';
 
-        if (userRole === 'admin') {
+        if (isAdmin()) {
             actionButtons += '<button class="btn btn-small btn-secondary" onclick="editAsset(\'' + asset._id + '\')" title="Edit">Edit</button>';
             actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
@@ -2068,8 +2074,8 @@ function setLaptopSpecsVisibility(category) {
 }
 
 function openAssetModal() {
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can add assets', 'error');
+    if (!canAddRecords()) {
+        showMessage('assetMessage', 'Viewer access is read-only', 'error');
         return;
     }
 
@@ -2090,10 +2096,12 @@ function closeAssetModal() {
 async function submitAssetForm(event) {
     event.preventDefault();
 
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can manage assets', 'error');
+    if (editingAssetId ? !isAdmin() : !canAddRecords()) {
+        showMessage('assetMessage', 'You do not have permission to make this change', 'error');
         return;
     }
+
+    const scrollPosition = window.scrollY;
 
     const category = document.getElementById('category').value;
     const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
@@ -2138,7 +2146,8 @@ async function submitAssetForm(event) {
         }
 
         closeAssetModal();
-        loadAssets();
+        await loadAssets();
+        window.scrollTo(0, scrollPosition);
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
     }
@@ -2217,15 +2226,15 @@ async function viewAssetDetails(assetId) {
     }
 
     let actionButtons = '';
-    if (userRole === 'admin') {
+    if (isAdmin()) {
         actionButtons = '<button class="btn btn-primary" onclick="editAsset(\'' + asset._id + '\')">Edit Asset</button>';
     }
 
-    if (asset.status === 'Available') {
+    if (isAdmin() && asset.status === 'Available') {
         actionButtons += '<button class="btn btn-success" onclick="showAssignForm(\'' + asset._id + '\')">Assign Asset</button>';
     }
 
-    if (asset.status === 'Assigned') {
+    if (isAdmin() && asset.status === 'Assigned') {
         actionButtons += '<button class="btn btn-success" onclick="showReturnForm(\'' + asset._id + '\')">Return Asset</button>';
     }
 
@@ -2549,8 +2558,8 @@ async function openPurchaseItemModal(id = null) {
         showMessage('purchaseMessage', 'Only admins can edit purchase items', 'error');
         return;
     }
-    if (!id && !isAdmin()) {
-        showMessage('purchaseMessage', 'Only admins can add purchase items', 'error');
+    if (!id && !canAddRecords()) {
+        showMessage('purchaseMessage', 'Viewer access is read-only', 'error');
         return;
     }
 
@@ -2605,8 +2614,8 @@ function closePurchaseItemModal() {
 
 async function submitPurchaseItemForm(evt) {
     evt.preventDefault();
-    if (!isAdmin()) {
-        showMessage('purchaseMessage', 'Only admins can manage purchase items', 'error');
+    if (editingPurchaseItemId ? !isAdmin() : !canAddRecords()) {
+        showMessage('purchaseMessage', 'You do not have permission to make this change', 'error');
         return;
     }
 
