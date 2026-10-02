@@ -530,6 +530,7 @@
                     <button class="btn btn-primary" onclick="focusAdminSection('createUserForm')">+ Add User</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
+                    <button class="btn btn-secondary" onclick="focusAdminSection('activityLogsSection')">View Activity Logs</button>
                 </div>
             </section>
 
@@ -766,6 +767,34 @@
                     </table>
                 </div>
             </div>
+
+            <section id="activityLogsSection" class="card" style="padding: 20px; margin-bottom: 20px;">
+                <div class="page-header" style="margin-bottom: 16px;">
+                    <h2 style="margin: 0;">User Activity Logs</h2>
+                    <div class="header-actions">
+                        <input id="activityLogSearch" type="search" placeholder="Filter user, action, asset, or category" oninput="filterActivityLogs()" aria-label="Filter activity logs">
+                        <button type="button" class="btn btn-secondary btn-small" onclick="loadActivityLogs()">Refresh</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Action</th>
+                                <th>Item</th>
+                                <th>Category</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityLogsTable">
+                            <tr><td colspan="7" class="text-center">Loading activity...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -1367,6 +1396,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261002-inventory-permissions"></script>
+    <script src="script.js?v=20261002-activity-logs"></script>
 </body>
 </html>

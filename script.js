@@ -11,6 +11,7 @@ const API_RETRY_DELAYS = [250, 750];
 // ========================================
 let allAssets = [];
 let allPurchaseItems = [];
+let allActivityLogs = [];
 let editingPurchaseItemId = null;
 let editingAssetId = null;
 let statusChart = null;
@@ -321,6 +322,7 @@ function switchPage(pageId, options = {}) {
         const adminDate = document.getElementById('adminPanelDate');
         if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         loadUsers();
+        loadActivityLogs();
     } else if (pageId === 'reportsPage') {
         renderHeader('headerReports');
         loadReports();
@@ -1601,6 +1603,52 @@ async function loadUsers() {
         showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
         if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load users: ' + error.message + '</td></tr>';
     }
+}
+
+function escapeActivityLogText(value) {
+    return String(value ?? '-').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
+
+async function loadActivityLogs() {
+    const tbody = document.getElementById('activityLogsTable');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading activity...</td></tr>';
+    try {
+        allActivityLogs = await apiCall('/activity-logs?limit=200', 'GET') || [];
+        filterActivityLogs();
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Unable to load activity logs</td></tr>';
+        showMessage('usersMessage', 'Error loading activity logs: ' + error.message, 'error', 0);
+    }
+}
+
+function filterActivityLogs() {
+    const tbody = document.getElementById('activityLogsTable');
+    if (!tbody) return;
+    const search = (document.getElementById('activityLogSearch')?.value || '').trim().toLowerCase();
+    const logs = allActivityLogs.filter(log => !search || [
+        log.actorEmail, log.actorRole, log.action, log.entityType, log.entityLabel, log.category, log.details
+    ].filter(Boolean).join(' ').toLowerCase().includes(search));
+
+    if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center no-data">No activity found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = logs.map(log => {
+        const when = log.createdAt ? new Date(log.createdAt).toLocaleString() : '-';
+        return '<tr>' +
+            '<td>' + escapeActivityLogText(when) + '</td>' +
+            '<td>' + escapeActivityLogText(log.actorEmail) + '</td>' +
+            '<td>' + escapeActivityLogText(log.actorRole) + '</td>' +
+            '<td>' + escapeActivityLogText(log.action) + '</td>' +
+            '<td>' + escapeActivityLogText(log.entityLabel || log.entityType) + '</td>' +
+            '<td>' + escapeActivityLogText(log.category) + '</td>' +
+            '<td>' + escapeActivityLogText(log.details) + '</td>' +
+            '</tr>';
+    }).join('');
 }
 
 function openUserCreateModal() {
