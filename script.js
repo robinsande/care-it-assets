@@ -3,14 +3,17 @@
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
 const API_TIMEOUT = 15000;
-const HEALTH_TIMEOUT = 8000;
+const LOGIN_TIMEOUT = 120000;
+const HEALTH_TIMEOUT = 120000;
 const API_RETRY_DELAYS = [250, 750];
 
 // ========================================
 // STATE MANAGEMENT
 // ========================================
 let allAssets = [];
+let allInventoryItems = [];
 let editingAssetId = null;
+let editingInventoryItemId = null;
 let statusChart = null;
 let locationChart = null;
 let departmentChart = null;
@@ -122,7 +125,8 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         let response;
         for (let attempt = 0; ; attempt++) {
             try {
-                response = await fetchWithTimeout(`${API_URL}${endpoint}`, options, API_TIMEOUT);
+                const timeoutMs = endpoint === '/auth/login' ? LOGIN_TIMEOUT : API_TIMEOUT;
+                response = await fetchWithTimeout(`${API_URL}${endpoint}`, options, timeoutMs);
                 if (response.status >= 500 && attempt < API_RETRY_DELAYS.length) {
                     await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAYS[attempt]));
                     continue;
@@ -246,6 +250,10 @@ function isAdmin() {
     return ['admin', 'superadmin'].includes(getUserRole());
 }
 
+function canAddRecords() {
+    return ['user', 'admin', 'superadmin'].includes(getUserRole());
+}
+
 function isSuperAdmin() {
     return getUserRole() === 'superadmin';
 }
@@ -306,6 +314,10 @@ function switchPage(pageId, options = {}) {
         renderHeader('headerAssets');
         renderHeaderActions();
         loadAssets();
+    } else if (pageId === 'inventoryPage') {
+        renderHeader('headerInventory');
+        renderInventoryHeaderActions();
+        loadInventory();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
         const adminDate = document.getElementById('adminPanelDate');
@@ -321,7 +333,7 @@ function initializeApp() {
     if (isAuthenticated()) {
         let savedPage = null;
         try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
-        const validPages = ['dashboardPage', 'assetsPage', 'usersPage', 'reportsPage'];
+        const validPages = ['dashboardPage', 'assetsPage', 'inventoryPage', 'usersPage', 'reportsPage'];
         if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
             switchPage(savedPage);
         } else {
@@ -344,7 +356,7 @@ function renderHeader(headerId = 'header') {
     const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
 
     let adminLinkHTML = '';
-    if (['admin', 'superadmin'].includes(userRole)) {
+    if (isAdmin()) {
         adminLinkHTML = '<a href="#" onclick="switchPage(\'usersPage\'); return false;">Admin Panel</a>';
     }
 
@@ -356,6 +368,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<nav class="header-nav">';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
+    headerHTML += '<a href="#" onclick="switchPage(\'inventoryPage\'); return false;">Inventory</a>';
     headerHTML += adminLinkHTML;
     headerHTML += '</nav>';
     headerHTML += '<div class="header-right">';
@@ -386,11 +399,141 @@ function renderHeaderActions() {
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     } else {
-        actionsHTML = '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
+        actionsHTML = canAddRecords() ? '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>' : '';
+        actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     }
 
     headerActions.innerHTML = actionsHTML;
+}
+
+function renderInventoryHeaderActions() {
+    const actions = document.getElementById('inventoryHeaderActions');
+    if (!actions) return;
+    actions.innerHTML = canAddRecords()
+        ? '<button class="btn btn-primary" onclick="openInventoryModal()">Add Purchase Item</button>'
+        : '';
+}
+
+function escapeInventoryText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
+
+async function loadInventory() {
+    const tbody = document.getElementById('inventoryTableBody');
+    if (!tbody) return;
+    try {
+        allInventoryItems = await apiCall('/inventory', 'GET') || [];
+        renderInventoryTable();
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">Unable to load purchase inventory</td></tr>';
+        showMessage('inventoryMessage', 'Error loading inventory: ' + error.message, 'error', 0);
+    }
+}
+
+function renderInventoryTable() {
+    const tbody = document.getElementById('inventoryTableBody');
+    if (!tbody) return;
+    if (!allInventoryItems.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No purchase items found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = allInventoryItems.map(item => {
+        const actions = isAdmin()
+            ? '<button class="btn btn-small btn-secondary" onclick="openInventoryModal(\'' + item._id + '\')">Edit</button> ' +
+                '<button class="btn btn-small btn-danger" onclick="deleteInventoryItem(\'' + item._id + '\')">Delete</button>'
+            : 'View only';
+        return '<tr>' +
+            '<td>' + escapeInventoryText(item.itemName) + '</td>' +
+            '<td>' + escapeInventoryText(item.category) + '</td>' +
+            '<td>' + escapeInventoryText(item.quantity) + '</td>' +
+            '<td>' + (item.unitPrice == null ? '-' : formatCurrency(item.unitPrice)) + '</td>' +
+            '<td>' + formatDate(item.purchaseDate) + '</td>' +
+            '<td>' + escapeInventoryText(item.supplier || '-') + '</td>' +
+            '<td>' + escapeInventoryText(item.department || '-') + '</td>' +
+            '<td>' + escapeInventoryText(item.location || '-') + '</td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function openInventoryModal(itemId = null) {
+    if (itemId ? !isAdmin() : !canAddRecords()) {
+        showMessage('inventoryMessage', 'You do not have permission to make this change', 'error');
+        return;
+    }
+    document.getElementById('inventoryForm').reset();
+    editingInventoryItemId = itemId;
+    const item = itemId ? allInventoryItems.find(entry => entry._id === itemId) : null;
+    document.getElementById('inventoryModalTitle').textContent = item ? 'Edit Inventory Item' : 'Add Purchase Item';
+    if (item) {
+        document.getElementById('inventoryItemName').value = item.itemName || '';
+        document.getElementById('inventoryCategory').value = item.category || '';
+        document.getElementById('inventoryQuantity').value = item.quantity ?? 1;
+        document.getElementById('inventoryUnitPrice').value = item.unitPrice ?? '';
+        document.getElementById('inventoryPurchaseDate').value = item.purchaseDate?.split('T')[0] || '';
+        document.getElementById('inventorySupplier').value = item.supplier || '';
+        document.getElementById('inventoryDepartment').value = item.department || '';
+        document.getElementById('inventoryLocation').value = item.location || '';
+        document.getElementById('inventoryDescription').value = item.description || '';
+    }
+    document.getElementById('inventoryModal').style.display = 'flex';
+}
+
+function closeInventoryModal() {
+    document.getElementById('inventoryModal').style.display = 'none';
+    editingInventoryItemId = null;
+}
+
+async function submitInventoryForm(event) {
+    event.preventDefault();
+    if (editingInventoryItemId ? !isAdmin() : !canAddRecords()) {
+        showMessage('inventoryMessage', 'You do not have permission to make this change', 'error');
+        return;
+    }
+    const unitPriceValue = document.getElementById('inventoryUnitPrice').value;
+    const payload = {
+        itemName: document.getElementById('inventoryItemName').value.trim(),
+        category: document.getElementById('inventoryCategory').value.trim(),
+        quantity: Number(document.getElementById('inventoryQuantity').value),
+        unitPrice: unitPriceValue === '' ? undefined : Number(unitPriceValue),
+        purchaseDate: document.getElementById('inventoryPurchaseDate').value || undefined,
+        supplier: document.getElementById('inventorySupplier').value.trim(),
+        department: document.getElementById('inventoryDepartment').value.trim(),
+        location: document.getElementById('inventoryLocation').value.trim(),
+        description: document.getElementById('inventoryDescription').value.trim(),
+    };
+    const wasEditing = Boolean(editingInventoryItemId);
+    try {
+        if (wasEditing) {
+            await apiCall('/inventory/' + editingInventoryItemId, 'PUT', payload);
+        } else {
+            await apiCall('/inventory', 'POST', payload);
+        }
+        closeInventoryModal();
+        showMessage('inventoryMessage', wasEditing ? 'Inventory item updated' : 'Purchase item added', 'success');
+        await loadInventory();
+    } catch (error) {
+        showMessage('inventoryMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function deleteInventoryItem(itemId) {
+    if (!isAdmin()) {
+        showMessage('inventoryMessage', 'Only admins can delete inventory items', 'error');
+        return;
+    }
+    if (!confirm('Delete this inventory item?')) return;
+    try {
+        await apiCall('/inventory/' + itemId, 'DELETE');
+        showMessage('inventoryMessage', 'Inventory item deleted', 'success');
+        await loadInventory();
+    } catch (error) {
+        showMessage('inventoryMessage', 'Error: ' + error.message, 'error', 0);
+    }
 }
 
 function toggleMobileMenu() {
@@ -1493,8 +1636,8 @@ function openUserCreateModal() {
     const roleSelect = document.getElementById('newUserRole');
     if (roleSelect) {
         const isSuper = isSuperAdmin();
-        roleSelect.innerHTML = '<option value="user">User</option>' +
-            '<option value="viewer">Viewer</option>' +
+        roleSelect.innerHTML = '<option value="viewer">Viewer</option>' +
+            '<option value="user">User</option>' +
             '<option value="admin">Admin</option>' +
             (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
     }
@@ -1568,6 +1711,7 @@ async function submitReturnedAsset(event) {
     }
 
     const payload = {
+        assetTag: document.getElementById('returnedAssetTag').value.trim(),
         description: document.getElementById('returnedDescription').value,
         category: document.getElementById('returnedCategory').value,
         brand: document.getElementById('returnedBrand').value,
@@ -1582,7 +1726,7 @@ async function submitReturnedAsset(event) {
 
     try {
         await apiCall('/returned-assets', 'POST', payload);
-        showMessage('usersMessage', 'Returned item recorded successfully', 'success');
+        showMessage('usersMessage', 'Returned item recorded and added to the asset list', 'success');
         document.getElementById('returnedAssetForm').reset();
     } catch (error) {
         showMessage('usersMessage', error.message || 'Unable to record returned item', 'error', 0);
@@ -1691,7 +1835,7 @@ function renderAssetsTable(assets) {
         const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
         let actionButtons = '<button class="btn btn-small btn-secondary" onclick="viewAssetDetails(\'' + asset._id + '\')" title="View">View</button>';
 
-        if (userRole === 'admin') {
+        if (isAdmin()) {
             actionButtons += '<button class="btn btn-small btn-secondary" onclick="editAsset(\'' + asset._id + '\')" title="Edit">Edit</button>';
             actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
@@ -1699,7 +1843,7 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr data-asset-id="' + asset._id + '"><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -1949,8 +2093,8 @@ function setLaptopSpecsVisibility(category) {
 }
 
 function openAssetModal() {
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can add assets', 'error');
+    if (!canAddRecords()) {
+        showMessage('assetMessage', 'Viewer access is read-only', 'error');
         return;
     }
 
@@ -1971,10 +2115,15 @@ function closeAssetModal() {
 async function submitAssetForm(event) {
     event.preventDefault();
 
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can manage assets', 'error');
+    if (editingAssetId ? !isAdmin() : !canAddRecords()) {
+        showMessage('assetMessage', 'You do not have permission to make this change', 'error');
         return;
     }
+
+    const scrollPosition = window.scrollY;
+    const editedAssetId = editingAssetId;
+    const originalRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+    const originalRowTop = originalRow ? originalRow.getBoundingClientRect().top : null;
 
     const category = document.getElementById('category').value;
     const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
@@ -2019,7 +2168,13 @@ async function submitAssetForm(event) {
         }
 
         closeAssetModal();
-        loadAssets();
+        await loadAssets();
+        const updatedRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+        if (updatedRow && originalRowTop !== null) {
+            window.scrollBy(0, updatedRow.getBoundingClientRect().top - originalRowTop);
+        } else {
+            window.scrollTo(0, scrollPosition);
+        }
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
     }
@@ -2098,15 +2253,15 @@ async function viewAssetDetails(assetId) {
     }
 
     let actionButtons = '';
-    if (userRole === 'admin') {
+    if (isAdmin()) {
         actionButtons = '<button class="btn btn-primary" onclick="editAsset(\'' + asset._id + '\')">Edit Asset</button>';
     }
 
-    if (asset.status === 'Available') {
+    if (isAdmin() && asset.status === 'Available') {
         actionButtons += '<button class="btn btn-success" onclick="showAssignForm(\'' + asset._id + '\')">Assign Asset</button>';
     }
 
-    if (asset.status === 'Assigned') {
+    if (isAdmin() && asset.status === 'Assigned') {
         actionButtons += '<button class="btn btn-success" onclick="showReturnForm(\'' + asset._id + '\')">Return Asset</button>';
     }
 

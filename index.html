@@ -580,8 +580,8 @@
                         <div class="form-group">
                             <label for="newUserRole">Role *</label>
                             <select id="newUserRole" required>
+                                <option value="viewer" selected>Viewer</option>
                                 <option value="user">User</option>
-                                <option value="viewer">Viewer</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
@@ -592,6 +592,10 @@
                 <div id="adminReturnSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
                     <div class="admin-form-heading"><h2 style="margin-top: 0;">Returned Asset Not in System</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminReturnSection')">Close</button></div>
                     <form id="returnedAssetForm" onsubmit="submitReturnedAsset(event)">
+                        <div class="form-group">
+                            <label for="returnedAssetTag">Asset Tag *</label>
+                            <input id="returnedAssetTag" type="text" placeholder="e.g., LAP001" required>
+                        </div>
                         <div class="form-group">
                             <label for="returnedDescription">Description *</label>
                             <input id="returnedDescription" type="text" placeholder="e.g., Dell charger, HP monitor, projector" required>
@@ -857,6 +861,90 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div id="inventoryPage" class="page" style="display: none;">
+        <header class="header" id="headerInventory"></header>
+        <div class="container">
+            <div class="page-header">
+                <h1>Purchase Inventory</h1>
+                <div class="header-actions" id="inventoryHeaderActions"></div>
+            </div>
+            <div id="inventoryMessage" class="alert" style="display: none;"></div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Purchase Date</th>
+                            <th>Supplier</th>
+                            <th>Department</th>
+                            <th>Location</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryTableBody">
+                        <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventoryModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="inventoryModalTitle">Add Purchase Item</h2>
+                <button class="close-btn" type="button" onclick="closeInventoryModal()">✕</button>
+            </div>
+            <form id="inventoryForm" onsubmit="submitInventoryForm(event)">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label for="inventoryItemName">Item Name *</label>
+                        <input id="inventoryItemName" type="text" required maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryCategory">Category *</label>
+                        <input id="inventoryCategory" type="text" required maxlength="80">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryQuantity">Quantity *</label>
+                        <input id="inventoryQuantity" type="number" min="0" step="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryUnitPrice">Unit Price (KES)</label>
+                        <input id="inventoryUnitPrice" type="number" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryPurchaseDate">Purchase Date</label>
+                        <input id="inventoryPurchaseDate" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventorySupplier">Supplier</label>
+                        <input id="inventorySupplier" type="text" maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryDepartment">Department</label>
+                        <input id="inventoryDepartment" type="text" maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="inventoryLocation">Storage Location</label>
+                        <input id="inventoryLocation" type="text" maxlength="120">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label for="inventoryDescription">Description</label>
+                        <textarea id="inventoryDescription" rows="3" maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 16px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Item</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeInventoryModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1137,6 +1225,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260910-import"></script>
+    <script src="script.js?v=20261002-inventory-permissions"></script>
 </body>
 </html>

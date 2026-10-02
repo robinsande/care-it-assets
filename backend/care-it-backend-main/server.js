@@ -210,7 +210,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, lowercase: true, trim: true, required: true },
   password: { type: String, required: true },
   mustChangePassword: { type: Boolean, default: false },
-  role: { type: String, enum: ["user", "viewer", "admin", "superadmin"], default: "user" },
+  role: { type: String, enum: ["user", "viewer", "admin", "superadmin"], default: "viewer" },
 }, { timestamps: true });
 
 userSchema.index({ email: 1 }, { unique: true });
@@ -257,6 +257,13 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+const canAddAssets = (req, res, next) => {
+  if (!req.user || !["user", "admin", "superadmin"].includes(req.user.role)) {
+    return res.status(403).json({ message: "Viewer access is read-only" });
+  }
+  next();
+};
+
 const superAdminOnly = (req, res, next) => {
   if (!req.user || req.user.role !== "superadmin") {
     return res.status(403).json({ message: "Super admin access required" });
@@ -293,7 +300,7 @@ app.post("/api/auth/register", async (req, res) => {
       name, 
       email: email.toLowerCase(), 
       password: hashedPassword,
-      role: "user" 
+      role: "viewer"
     });
     
     await user.save();
@@ -438,7 +445,7 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
     }
 
     const allowedRoles = ["user", "viewer", "admin", "superadmin"];
-    const selectedRole = allowedRoles.includes(role) ? role : "user";
+    const selectedRole = allowedRoles.includes(role) ? role : "viewer";
 
     if (selectedRole === "superadmin" && req.user.role !== "superadmin") {
       return res.status(403).json({ message: "Only the super admin can create another super admin" });
@@ -719,7 +726,7 @@ const assetSchema = new mongoose.Schema({
   assetTag: { type: String, required: true, unique: true, uppercase: true },
   category: {
     type: String,
-    enum: ["Laptops", "Mobile Phones", "Monitors","Projectors","TV","Printers", "Copiers", "Network Devices", "Tablets"],
+    enum: ["Laptops", "Mobile Phones", "Monitors", "Projectors", "TV", "Printers", "Copiers", "Network Devices", "Tablets", "Accessories", "Other"],
     required: true,
   },
   brand: String,
@@ -846,6 +853,21 @@ assetSchema.index({ createdAt: -1 });
 assetSchema.index({ status: 1, category: 1 });
 const Asset = mongoose.model("Asset", assetSchema);
 
+const inventoryItemSchema = new mongoose.Schema({
+  itemName: { type: String, required: true, trim: true },
+  category: { type: String, required: true, trim: true },
+  description: String,
+  quantity: { type: Number, required: true, min: 0, default: 1 },
+  unitPrice: { type: Number, min: 0 },
+  purchaseDate: Date,
+  supplier: String,
+  department: String,
+  location: String,
+}, { timestamps: true });
+
+inventoryItemSchema.index({ itemName: 1, category: 1 });
+const InventoryItem = mongoose.model("InventoryItem", inventoryItemSchema);
+
 const returnedAssetSchema = new mongoose.Schema({
   description: { type: String, required: true },
   category: { type: String, enum: ["Laptops", "Mobile Phones", "Monitors", "Projectors", "TV", "Printers", "Copiers", "Network Devices", "Tablets", "Accessories", "Other"], default: "Other" },
@@ -886,8 +908,8 @@ const BorrowedItem = mongoose.model("BorrowedItem", borrowedItemSchema);
    ASSET ROUTES
 ========================= */
 
-// CREATE (Admin only)
-app.post("/api/assets", auth, adminOnly, async (req, res) => {
+// CREATE (User and admin)
+app.post("/api/assets", auth, canAddAssets, async (req, res) => {
   try {
     const asset = await Asset.create(req.body);
     res.status(201).json({ message: "Asset created", asset });
@@ -969,6 +991,44 @@ app.delete("/api/assets/:id", auth, adminOnly, async (req, res) => {
     const asset = await Asset.findByIdAndDelete(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     res.json({ message: "Asset deleted", asset });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/inventory", auth, async (req, res) => {
+  try {
+    const items = await InventoryItem.find().sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/inventory", auth, canAddAssets, async (req, res) => {
+  try {
+    const item = await InventoryItem.create(req.body);
+    res.status(201).json({ message: "Inventory item created", item });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.put("/api/inventory/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const item = await InventoryItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!item) return res.status(404).json({ message: "Inventory item not found" });
+    res.json({ message: "Inventory item updated", item });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.delete("/api/inventory/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const item = await InventoryItem.findByIdAndDelete(req.params.id);
+    if (!item) return res.status(404).json({ message: "Inventory item not found" });
+    res.json({ message: "Inventory item deleted", item });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1361,7 +1421,7 @@ app.post("/api/import/image", auth, adminOnly, imageUpload.single("file"), async
 /* =========================
    ASSIGN ASSET
 ========================= */
-app.put("/api/assets/:id/assign", auth, async (req, res) => {
+app.put("/api/assets/:id/assign", auth, adminOnly, async (req, res) => {
   try {
     const asset = await Asset.findById(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
@@ -1447,7 +1507,7 @@ app.post("/api/assets/bulk-assign", auth, adminOnly, async (req, res) => {
 /* =========================
    RETURN ASSET
 ========================= */
-app.put("/api/assets/:id/return", auth, async (req, res) => {
+app.put("/api/assets/:id/return", auth, adminOnly, async (req, res) => {
   try {
     const asset = await Asset.findById(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
@@ -1480,6 +1540,35 @@ app.put("/api/assets/:id/return", auth, async (req, res) => {
 app.post("/api/returned-assets", auth, adminOnly, async (req, res) => {
   try {
     const payload = req.body || {};
+    if (!payload.assetTag || !payload.description || !payload.returnedBy) {
+      return res.status(400).json({ message: "Asset tag, description, and returned by are required" });
+    }
+
+    const returnDate = payload.returnDate ? new Date(payload.returnDate) : new Date();
+    const asset = await Asset.create({
+      assetTag: payload.assetTag,
+      category: payload.category || "Other",
+      brand: payload.brand || "",
+      model: payload.model || "",
+      serialNumber: payload.serialNumber || "",
+      status: "Available",
+      department: payload.department || "",
+      location: payload.location || "",
+      condition: payload.condition || "Good",
+      returnInfo: {
+        returnedBy: payload.returnedBy,
+        returnDate,
+        condition: payload.condition || "Good",
+      },
+      history: [{
+        action: "Returned to inventory",
+        assignedTo: payload.returnedBy,
+        department: payload.department || "",
+        date: returnDate,
+        notes: payload.notes || "Returned item added to the asset register",
+      }],
+    });
+
     const entry = await ReturnedAsset.create({
       description: payload.description || payload.itemName || "Returned item",
       category: payload.category || "Other",
@@ -1492,13 +1581,13 @@ app.post("/api/returned-assets", auth, adminOnly, async (req, res) => {
       location: payload.location || "",
       condition: payload.condition || "Good",
       notes: payload.notes || "",
-      returnDate: payload.returnDate ? new Date(payload.returnDate) : new Date(),
+      returnDate,
       status: payload.status || "Received",
     });
 
-    res.status(201).json({ message: "Returned asset recorded", entry });
+    res.status(201).json({ message: "Returned asset recorded and added to assets", asset, entry });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(400).json({ message: err.message });
   }
 });
 
