@@ -1824,7 +1824,7 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr data-asset-id="' + asset._id + '"><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -2102,6 +2102,9 @@ async function submitAssetForm(event) {
     }
 
     const scrollPosition = window.scrollY;
+    const editedAssetId = editingAssetId;
+    const originalRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+    const originalRowTop = originalRow ? originalRow.getBoundingClientRect().top : null;
 
     const category = document.getElementById('category').value;
     const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
@@ -2147,7 +2150,12 @@ async function submitAssetForm(event) {
 
         closeAssetModal();
         await loadAssets();
-        window.scrollTo(0, scrollPosition);
+        const updatedRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+        if (updatedRow && originalRowTop !== null) {
+            window.scrollBy(0, updatedRow.getBoundingClientRect().top - originalRowTop);
+        } else {
+            window.scrollTo(0, scrollPosition);
+        }
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
     }
