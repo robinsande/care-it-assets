@@ -3,6 +3,36 @@
 // ========================================
 const API_URL = 'https://care-it-backend.onrender.com/api';
 const API_TIMEOUT = 15000;
+const HEALTH_TIMEOUT = 120000;
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function warmBackend() {
+    const healthUrl = API_URL.replace(/\/api\/?$/, '') + '/health';
+    try {
+        await fetchWithTimeout(healthUrl, { method: 'GET', cache: 'no-store' }, HEALTH_TIMEOUT);
+    } catch (error) {
+        console.warn('Backend warm-up failed:', error.message);
+    }
+}
+
+function startBackendKeepAlive() {
+    warmBackend();
+    window.setInterval(() => {
+        if (document.visibilityState === 'visible') warmBackend();
+    }, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') warmBackend();
+    });
+}
 
 // ========================================
 // STATE MANAGEMENT
@@ -210,6 +240,14 @@ function isSuperAdmin() {
     return getUserRole() === 'superadmin';
 }
 
+function updateUserCreationControls() {
+    const isSuper = isSuperAdmin();
+    ['createUserQuickAction', 'createUserHeaderAction'].forEach(id => {
+        const action = document.getElementById(id);
+        if (action) action.style.display = isSuper ? '' : 'none';
+    });
+}
+
 function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -255,7 +293,7 @@ function switchPage(pageId, options = {}) {
         }
     }
 
-    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
+    if (!options.skipSave && pageId !== 'userLoginPage') {
         try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
     }
 
@@ -532,32 +570,6 @@ async function handleChangePassword(event) {
         showMessage('changePasswordMessage', error.message || 'Error changing password', 'error', 0);
         btn.disabled = false;
         btn.textContent = 'Change Password';
-    }
-}
-
-async function handleRegister(event) {
-    event.preventDefault();
-
-    const name = document.getElementById('registerName').value;
-    const email = document.getElementById('registerEmail').value;
-    const password = document.getElementById('registerPassword').value;
-    const registerBtn = document.getElementById('registerBtn');
-
-    try {
-        registerBtn.disabled = true;
-        registerBtn.textContent = 'Creating account...';
-
-        await apiCall('/auth/register', 'POST', { name, email, password });
-
-        showMessage('registerMessage', 'Account created! Redirecting to login...', 'success', 2000);
-
-        setTimeout(() => {
-            switchPage('userLoginPage');
-        }, 2000);
-    } catch (error) {
-        showMessage('registerMessage', error.message || 'Registration failed', 'error', 0);
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Create Account';
     }
 }
 
@@ -1394,6 +1406,7 @@ function hideAdminSection(sectionId) {
 }
 
 async function loadUsers() {
+    updateUserCreationControls();
     try {
         const users = await apiCall('/users', 'GET');
         const tbody = document.getElementById('usersTableBody');
@@ -1448,6 +1461,11 @@ async function loadUsers() {
 }
 
 function openUserCreateModal() {
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
+        return;
+    }
+
     const form = document.getElementById('createUserForm');
     if (!form) return;
     const roleSelect = document.getElementById('newUserRole');
@@ -1465,8 +1483,8 @@ function openUserCreateModal() {
 
 async function submitCreateUser(event) {
     event.preventDefault();
-    if (!isAdmin()) {
-        showMessage('usersMessage', 'Only admins can manage users', 'error');
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
         return;
     }
 
@@ -2295,5 +2313,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cat) {
         cat.addEventListener('change', () => setLaptopSpecsVisibility(cat.value || ''));
     }
+    startBackendKeepAlive();
     initializeApp();
 });

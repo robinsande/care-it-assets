@@ -260,7 +260,7 @@ const superAdminOnly = (req, res, next) => {
 ========================= */
 
 // REGISTER
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", auth, superAdminOnly, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -366,7 +366,7 @@ app.get("/api/auth/me", auth, async (req, res) => {
 });
 
 // CREATE ADMIN
-app.post("/api/auth/create-admin", auth, adminOnly, async (req, res) => {
+app.post("/api/auth/create-admin", auth, superAdminOnly, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -416,7 +416,7 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 });
 
 // CREATE USER / VIEWER / ADMIN
-app.post("/api/users", auth, adminOnly, async (req, res) => {
+app.post("/api/users", auth, superAdminOnly, async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
