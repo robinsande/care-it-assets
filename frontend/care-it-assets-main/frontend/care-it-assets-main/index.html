@@ -39,9 +39,6 @@
                     <p>
                         <a href="#" class="auth-link" onclick="switchPage('forgotPasswordPage'); return false;">Forgot Password?</a>
                     </p>
-                    <p>Don't have an account? 
-                        <a href="#" class="auth-link" onclick="switchPage('registerPage'); return false;">Create one</a>
-                    </p>
                 </div>
             </div>
         </div>
@@ -158,44 +155,6 @@
                     <button type="submit" class="btn btn-primary" id="changePasswordBtn" style="width: 100%;">Change Password</button>
                 </form>
                 <p class="auth-footer"><a href="#" class="auth-link" onclick="logout(); return false;">Sign out</a></p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Register Page -->
-    <div id="registerPage" class="page" style="display: none;">
-        <div class="auth-container">
-            <div class="auth-card">
-                <h1 class="auth-title">CARE IT Assets</h1>
-                <p class="auth-subtitle">Create your account</p>
-
-                <div id="registerMessage" class="alert" style="display: none;"></div>
-
-                <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
-                    <div class="form-group">
-                        <label for="registerName">Full Name</label>
-                        <input id="registerName" type="text" placeholder="Enter your full name" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="registerEmail">Email Address</label>
-                        <input id="registerEmail" type="email" placeholder="Enter your email" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="registerPassword">Password</label>
-                        <input id="registerPassword" type="password" placeholder="Enter your password" required minlength="6">
-                    </div>
-
-                    <button type="submit" class="btn btn-primary" id="registerBtn" style="width: 100%;">
-                        Create Account
-                    </button>
-                </form>
-
-                <p class="auth-footer">
-                    Already have an account? 
-                    <a href="#" class="auth-link" onclick="switchPage('userLoginPage'); return false;">Sign in</a>
-                </p>
             </div>
         </div>
     </div>
@@ -527,7 +486,7 @@
                     <div class="admin-landing-date"><span id="adminPanelDate"></span></div>
                 </div>
                 <div class="admin-quick-actions">
-                    <button class="btn btn-primary" onclick="focusAdminSection('createUserForm')">+ Add User</button>
+                    <button id="createUserQuickAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">+ Add User</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
                 </div>
@@ -546,7 +505,7 @@
                     <span class="admin-summary-icon">&#8599;</span>
                     <span><strong>Issue Desk</strong><small>Borrow and staff equipment</small></span>
                 </button>
-                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('createUserForm')">
+                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('usersTableBody')">
                     <span class="admin-summary-icon">&#10003;</span>
                     <span><strong>Access Control</strong><small>Roles and passwords</small></span>
                 </button>
@@ -555,7 +514,7 @@
             <div class="page-header">
                 <h1>User & Asset Operations</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" onclick="openUserCreateModal()">Add User</button>
+                    <button id="createUserHeaderAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">Add User</button>
                 </div>
             </div>
 

@@ -188,47 +188,6 @@ const superAdminOnly = (req, res, next) => {
    AUTH ROUTES
 ========================= */
 
-// REGISTER
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!email || !password || !name) {
-      return res.status(400).json({ message: "Name, email and password required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
-    }
-
-    const exists = await User.findOne({ email: email.toLowerCase() });
-    if (exists) {
-      return res.status(400).json({ message: "Email already exists" });
-    }
-
-    // Hash password before saving
-    const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || 10));
-
-    const user = new User({ 
-      name, 
-      email: email.toLowerCase(), 
-      password: hashedPassword,
-      role: "user" 
-    });
-    
-    await user.save();
-
-    res.status(201).json({
-      message: "User created successfully",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
-    });
-
-  } catch (err) {
-    console.error("Register Error:", err);
-    res.status(500).json({ message: err.message || "Registration failed" });
-  }
-});
-
 // LOGIN
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -280,7 +239,7 @@ app.get("/api/auth/me", auth, async (req, res) => {
 });
 
 // CREATE ADMIN
-app.post("/api/auth/create-admin", auth, adminOnly, async (req, res) => {
+app.post("/api/auth/create-admin", auth, superAdminOnly, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -330,7 +289,7 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 });
 
 // CREATE USER / VIEWER / ADMIN
-app.post("/api/users", auth, adminOnly, async (req, res) => {
+app.post("/api/users", auth, superAdminOnly, async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 

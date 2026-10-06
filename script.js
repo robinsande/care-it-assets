@@ -258,6 +258,14 @@ function isSuperAdmin() {
     return getUserRole() === 'superadmin';
 }
 
+function updateUserCreationControls() {
+    const isSuper = isSuperAdmin();
+    ['createUserQuickAction', 'createUserHeaderAction'].forEach(id => {
+        const action = document.getElementById(id);
+        if (action) action.style.display = isSuper ? '' : 'none';
+    });
+}
+
 function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -303,7 +311,7 @@ function switchPage(pageId, options = {}) {
         }
     }
 
-    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
+    if (!options.skipSave && pageId !== 'userLoginPage') {
         try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
     }
 
@@ -715,32 +723,6 @@ async function handleChangePassword(event) {
         showMessage('changePasswordMessage', error.message || 'Error changing password', 'error', 0);
         btn.disabled = false;
         btn.textContent = 'Change Password';
-    }
-}
-
-async function handleRegister(event) {
-    event.preventDefault();
-
-    const name = document.getElementById('registerName').value;
-    const email = document.getElementById('registerEmail').value;
-    const password = document.getElementById('registerPassword').value;
-    const registerBtn = document.getElementById('registerBtn');
-
-    try {
-        registerBtn.disabled = true;
-        registerBtn.textContent = 'Creating account...';
-
-        await apiCall('/auth/register', 'POST', { name, email, password });
-
-        showMessage('registerMessage', 'Account created! Redirecting to login...', 'success', 2000);
-
-        setTimeout(() => {
-            switchPage('userLoginPage');
-        }, 2000);
-    } catch (error) {
-        showMessage('registerMessage', error.message || 'Registration failed', 'error', 0);
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Create Account';
     }
 }
 
@@ -1577,6 +1559,7 @@ function hideAdminSection(sectionId) {
 }
 
 async function loadUsers() {
+    updateUserCreationControls();
     try {
         const users = await apiCall('/users', 'GET');
         const tbody = document.getElementById('usersTableBody');
@@ -1631,6 +1614,11 @@ async function loadUsers() {
 }
 
 function openUserCreateModal() {
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
+        return;
+    }
+
     const form = document.getElementById('createUserForm');
     if (!form) return;
     const roleSelect = document.getElementById('newUserRole');
@@ -1648,8 +1636,8 @@ function openUserCreateModal() {
 
 async function submitCreateUser(event) {
     event.preventDefault();
-    if (!isAdmin()) {
-        showMessage('usersMessage', 'Only admins can manage users', 'error');
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
         return;
     }
 
