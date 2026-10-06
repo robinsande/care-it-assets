@@ -2283,5 +2283,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cat) {
         cat.addEventListener('change', () => setLaptopSpecsVisibility(cat.value || ''));
     }
+    startBackendKeepAlive();
     initializeApp();
 });
