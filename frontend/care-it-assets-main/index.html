@@ -519,6 +519,11 @@
             </div>
 
             <div id="usersMessage" class="alert" style="display: none;"></div>
+            <div id="createdUserCredentials" class="alert success" role="status" aria-live="polite" style="display: none;">
+                <p>User created. Share this temporary password securely; it will only be shown now.</p>
+                <p><strong>Temporary password: </strong><code id="createdUserTemporaryPassword"></code></p>
+                <p>The user must change this password at first sign-in.</p>
+            </div>
 
             <div class="grid grid-2">
                 <div id="adminCreateUserSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
@@ -532,10 +537,7 @@
                             <label for="newUserEmail">Email *</label>
                             <input id="newUserEmail" type="email" required>
                         </div>
-                        <div class="form-group">
-                            <label for="newUserPassword">Password *</label>
-                            <input id="newUserPassword" type="password" minlength="6" required>
-                        </div>
+                        <p>A secure temporary password will be generated automatically.</p>
                         <div class="form-group">
                             <label for="newUserRole">Role *</label>
                             <select id="newUserRole" required>
@@ -1096,6 +1098,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261006-no-public-signup"></script>
+    <script src="script.js?v=20261006-temporary-password"></script>
 </body>
 </html>

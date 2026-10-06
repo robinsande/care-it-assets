@@ -1488,16 +1488,31 @@ async function submitCreateUser(event) {
         return;
     }
 
+    const credentialsMessage = document.getElementById('createdUserCredentials');
+    const temporaryPasswordElement = document.getElementById('createdUserTemporaryPassword');
+    if (credentialsMessage) credentialsMessage.style.display = 'none';
+    if (temporaryPasswordElement) temporaryPasswordElement.textContent = '';
+
     const payload = {
         name: document.getElementById('newUserName').value,
         email: document.getElementById('newUserEmail').value,
-        password: document.getElementById('newUserPassword').value,
         role: document.getElementById('newUserRole').value,
     };
 
     try {
-        await apiCall('/users', 'POST', payload);
-        showMessage('usersMessage', 'User created successfully', 'success');
+        const response = await apiCall('/users', 'POST', payload);
+        if (!response) {
+            throw new Error('User creation was denied or no response was returned.');
+        }
+        if (typeof response.temporaryPassword !== 'string') {
+            throw new Error('The account was created, but no temporary password was returned. Reset the password before sharing account details.');
+        }
+        if (!credentialsMessage || !temporaryPasswordElement) {
+            throw new Error('The account was created, but this page cannot display its temporary password. Reset the password before sharing account details.');
+        }
+
+        temporaryPasswordElement.textContent = response.temporaryPassword;
+        credentialsMessage.style.display = 'block';
         document.getElementById('createUserForm').reset();
         loadUsers();
     } catch (error) {

@@ -137,6 +137,10 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", userSchema);
 
+function generateTemporaryPassword() {
+  return crypto.randomBytes(12).toString("base64url");
+}
+
 /* =========================
    PASSWORD RESET MODEL
 ========================= */
@@ -191,14 +195,10 @@ const superAdminOnly = (req, res, next) => {
 // REGISTER
 app.post("/api/auth/register", auth, superAdminOnly, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email } = req.body;
 
-    if (!email || !password || !name) {
-      return res.status(400).json({ message: "Name, email and password required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!email || !name) {
+      return res.status(400).json({ message: "Name and email required" });
     }
 
     const exists = await User.findOne({ email: email.toLowerCase() });
@@ -206,21 +206,23 @@ app.post("/api/auth/register", auth, superAdminOnly, async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    // Hash password before saving
-    const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || 10));
+    const temporaryPassword = generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS || 10));
 
     const user = new User({ 
       name, 
       email: email.toLowerCase(), 
       password: hashedPassword,
-      role: "user" 
+      role: "user",
+      mustChangePassword: true
     });
     
     await user.save();
 
-    res.status(201).json({
+    res.set("Cache-Control", "no-store").status(201).json({
       message: "User created successfully",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      temporaryPassword
     });
 
   } catch (err) {
@@ -282,14 +284,10 @@ app.get("/api/auth/me", auth, async (req, res) => {
 // CREATE ADMIN
 app.post("/api/auth/create-admin", auth, superAdminOnly, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email } = req.body;
 
-    if (!email || !password || !name) {
-      return res.status(400).json({ message: "Name, email and password required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!email || !name) {
+      return res.status(400).json({ message: "Name and email required" });
     }
 
     const exists = await User.findOne({ email: email.toLowerCase() });
@@ -297,20 +295,23 @@ app.post("/api/auth/create-admin", auth, superAdminOnly, async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || 10));
+    const temporaryPassword = generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS || 10));
 
     const user = new User({ 
       name, 
       email: email.toLowerCase(), 
       password: hashedPassword,
-      role: "admin" 
+      role: "admin",
+      mustChangePassword: true
     });
     
     await user.save();
 
-    res.status(201).json({
+    res.set("Cache-Control", "no-store").status(201).json({
       message: "Admin user created successfully",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      temporaryPassword
     });
 
   } catch (err) {
@@ -332,14 +333,10 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 // CREATE USER / VIEWER / ADMIN
 app.post("/api/users", auth, superAdminOnly, async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, role } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email and password are required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!name || !email) {
+      return res.status(400).json({ message: "Name and email are required" });
     }
 
     const allowedRoles = ["user", "viewer", "admin", "superadmin"];
@@ -354,18 +351,21 @@ app.post("/api/users", auth, superAdminOnly, async (req, res) => {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || 10));
+    const temporaryPassword = generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS || 10));
     const user = new User({
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
       role: selectedRole,
+      mustChangePassword: true,
     });
 
     await user.save();
-    res.status(201).json({
+    res.set("Cache-Control", "no-store").status(201).json({
       message: "User created successfully",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      temporaryPassword
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
