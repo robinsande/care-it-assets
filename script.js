@@ -1825,7 +1825,6 @@ function renderAssetsTable(assets) {
 
         if (isAdmin()) {
             actionButtons += '<button class="btn btn-small btn-secondary" onclick="editAsset(\'' + asset._id + '\')" title="Edit">Edit</button>';
-            actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
         }
 
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
@@ -1871,12 +1870,14 @@ function updateBulkActionsBar() {
     const bar = document.getElementById('bulkActionsBar');
     const countEl = document.getElementById('selectedCount');
     const isAdminValue = isAdmin();
+    const bulkEditBtn = document.getElementById('bulkEditBtn');
     
     if (selectedAssetIds.length > 0) {
         bar.style.display = 'flex';
         countEl.textContent = selectedAssetIds.length;
-        document.getElementById('bulkEditBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
-        document.getElementById('bulkDeleteBtn').style.display = isAdminValue ? 'inline-flex' : 'none';
+        if (bulkEditBtn) {
+            bulkEditBtn.style.display = isAdminValue ? 'inline-flex' : 'none';
+        }
     } else {
         bar.style.display = 'none';
     }
@@ -1895,32 +1896,8 @@ function clearSelection() {
 }
 
 async function bulkDeleteSelected() {
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can delete assets', 'error');
-        return;
-    }
-    if (selectedAssetIds.length === 0) return;
-    
-    if (!confirm(`Are you sure you want to DELETE ${selectedAssetIds.length} selected asset(s)?`)) return;
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const assetId of selectedAssetIds) {
-        try {
-            await apiCall('/assets/' + assetId, 'DELETE');
-            successCount++;
-        } catch (err) {
-            errorCount++;
-        }
-    }
-    
-    let msg = `Bulk delete completed: ${successCount} deleted`;
-    if (errorCount > 0) msg += `, ${errorCount} failed`;
-    showMessage('assetMessage', msg, errorCount > 0 ? 'error' : 'success');
-    
-    clearSelection();
-    loadAssets();
+    showMessage('assetMessage', 'Asset deletion is temporarily disabled for now.', 'info', 3000);
+    return;
 }
 
 function bulkEditSelected() {
@@ -2203,20 +2180,8 @@ async function editAsset(assetId) {
 }
 
 async function deleteAsset(assetId) {
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can delete assets', 'error');
-        return;
-    }
-
-    if (!confirm('Are you sure you want to delete this asset?')) return;
-
-    try {
-        await apiCall('/assets/' + assetId, 'DELETE');
-        showMessage('assetMessage', 'Asset deleted successfully', 'success');
-        loadAssets();
-    } catch (error) {
-        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
-    }
+    showMessage('assetMessage', 'Asset deletion is temporarily disabled for now.', 'info', 3000);
+    return;
 }
 
 async function viewAssetDetails(assetId) {
