@@ -2396,7 +2396,9 @@ function showAssignForm(assetId) {
 
 function showReturnForm(assetId) {
     const content = document.getElementById('assetDetailsContent');
-    let formHTML = '<form onsubmit="submitReturnForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
+    if (content.querySelector('#returnAssetForm')) return;
+
+    let formHTML = '<form id="returnAssetForm" onsubmit="submitReturnForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Return Asset</h3>';
     formHTML += '<p>Return date and time are recorded automatically when you confirm.</p>';
     formHTML += '<div class="form-group"><label for="returnedBy">Returned By *</label><input id="returnedBy" type="text" required placeholder="Employee name"></div>';
@@ -2430,6 +2432,11 @@ async function submitAssignForm(event, assetId) {
 
 async function submitReturnForm(event, assetId) {
     event.preventDefault();
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton.disabled) return;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Returning...';
 
     const data = {
         returnedBy: document.getElementById('returnedBy').value.trim(),
@@ -2443,6 +2450,8 @@ async function submitReturnForm(event, assetId) {
         loadAssets();
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+        submitButton.disabled = false;
+        submitButton.textContent = 'Confirm Return';
     }
 }
 
