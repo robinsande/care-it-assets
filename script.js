@@ -2398,6 +2398,7 @@ function showReturnForm(assetId) {
     const content = document.getElementById('assetDetailsContent');
     let formHTML = '<form onsubmit="submitReturnForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Return Asset</h3>';
+    formHTML += '<p>Return date and time are recorded automatically when you confirm.</p>';
     formHTML += '<div class="form-group"><label for="returnedBy">Returned By *</label><input id="returnedBy" type="text" required placeholder="Employee name"></div>';
     formHTML += '<div class="form-group"><label for="returnCondition">Condition *</label><select id="returnCondition" required><option value="">Select Condition</option><option value="New">New</option><option value="Good">Good</option><option value="Faulty">Faulty</option><option value="BER">BER</option><option value="Damaged">Damaged</option></select></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Return</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
@@ -2431,7 +2432,7 @@ async function submitReturnForm(event, assetId) {
     event.preventDefault();
 
     const data = {
-        returnedBy: document.getElementById('returnedBy').value,
+        returnedBy: document.getElementById('returnedBy').value.trim(),
         condition: document.getElementById('returnCondition').value,
     };
 
