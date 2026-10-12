@@ -1853,6 +1853,19 @@ async function loadAssets() {
     }
 }
 
+function handleAssetAction(select, assetId) {
+    const action = select.value;
+    select.value = '';
+
+    if (action === 'view') {
+        viewAssetDetails(assetId);
+    } else if (action === 'edit') {
+        editAsset(assetId);
+    } else if (action === 'delete') {
+        deleteAsset(assetId);
+    }
+}
+
 function renderAssetsTable(assets) {
     const tbody = document.getElementById('assetsTableBody');
     const userRole = getUserRole();
@@ -1865,17 +1878,14 @@ function renderAssetsTable(assets) {
 
     tbody.innerHTML = assets.map(asset => {
         const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
-        let actionButtons = '<button class="btn btn-small btn-secondary" onclick="viewAssetDetails(\'' + asset._id + '\')" title="View">View</button>';
-
-        if (isAdmin()) {
-            actionButtons += '<button class="btn btn-small btn-secondary" onclick="editAsset(\'' + asset._id + '\')" title="Edit">Edit</button>';
-            actionButtons += '<button class="btn btn-small btn-danger" onclick="deleteAsset(\'' + asset._id + '\')" title="Delete">Delete</button>';
-        }
+        const actionOptions = '<option value="" selected>Actions</option>' +
+            '<option value="view">View</option>' +
+            (isAdmin() ? '<option value="edit">Edit</option><option value="delete">Delete</option>' : '');
 
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        return '<tr data-asset-id="' + asset._id + '"><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + actionButtons + '</div></td></tr>';
+        return '<tr data-asset-id="' + asset._id + '"><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons"><select class="asset-action-select" data-asset-id="' + asset._id + '" aria-label="Asset actions" onchange="handleAssetAction(this, this.dataset.assetId)">' + actionOptions + '</select></div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }

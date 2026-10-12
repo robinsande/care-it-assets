@@ -549,6 +549,27 @@ body.dark-mode .theme-toggle:hover {
     gap: 8px;
 }
 
+.asset-action-select {
+    width: auto;
+    min-width: 100px;
+    padding: 6px 10px;
+    background-color: #6b7280;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.asset-action-select:hover {
+    background-color: #4b5563;
+}
+
+.asset-action-select option {
+    background-color: white;
+    color: #1f2937;
+}
+
 /* ========================================
    LOADING
    ======================================== */
