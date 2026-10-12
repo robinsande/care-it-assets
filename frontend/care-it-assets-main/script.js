@@ -388,8 +388,29 @@ function renderHeaderActions() {
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     }
 
-    headerActions.innerHTML = actionsHTML;
+    headerActions.innerHTML = createActionDropdown(actionsHTML);
 }
+
+function createActionDropdown(actionsHTML) {
+    return '<details class="action-dropdown"><summary>Actions</summary><div class="action-dropdown-menu">' + actionsHTML + '</div></details>';
+}
+
+document.addEventListener('click', event => {
+    const clickedDropdown = event.target.closest('.action-dropdown');
+    document.querySelectorAll('.action-dropdown[open]').forEach(dropdown => {
+        if (dropdown !== clickedDropdown || event.target.closest('.action-dropdown-menu button')) {
+            dropdown.open = false;
+        }
+    });
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        document.querySelectorAll('.action-dropdown[open]').forEach(dropdown => {
+            dropdown.open = false;
+        });
+    }
+});
 
 function toggleMobileMenu() {
     const nav = document.querySelector('.header-nav');
@@ -1429,13 +1450,18 @@ async function loadUsers() {
             const roleOptions = ['user', 'viewer', 'admin', ...(isSuperAdmin() ? ['superadmin'] : [])]
                 .map(role => '<option value="' + role + '"' + (user.role === role ? ' selected' : '') + '>' + role.charAt(0).toUpperCase() + role.slice(1) + '</option>')
                 .join('');
-            const resetButton = canResetPassword ? '<button class="btn btn-small btn-secondary" onclick="resetUserPassword(\'' + user._id + '\')">Reset Password</button>' : '';
+            const actionOptions = '<option value="" selected>Actions</option>' +
+                (canResetPassword ? '<option value="reset-password">Reset Password</option>' : '') +
+                (canDelete ? '<option value="delete">Delete</option>' : '');
+            const userActions = canResetPassword || canDelete
+                ? '<select class="table-action-select" data-user-id="' + user._id + '" aria-label="User actions" onchange="handleUserAction(this, this.dataset.userId)">' + actionOptions + '</select>'
+                : '<span style="color:#94a3b8;">Protected</span>';
             return '<tr>' +
                 '<td>' + (user.name || '-') + '</td>' +
                 '<td>' + (user.email || '-') + '</td>' +
                 '<td>' + (canEditRole ? '<select class="user-role-select" data-user-id="' + user._id + '" style="min-width:130px;">' + roleOptions + '</select>' : (user.role || 'user')) + '</td>' +
                 '<td>' + formatDate(user.createdAt) + '</td>' +
-                '<td>' + resetButton + ' ' + (canDelete ? '<button class="btn btn-small btn-danger" onclick="deleteUser(\'' + user._id + '\')">Delete</button>' : '<span style="color:#94a3b8;">Protected</span>') + '</td>' +
+                '<td><div class="action-buttons">' + userActions + '</div></td>' +
                 '</tr>';
         }).join('');
 
@@ -1535,6 +1561,13 @@ async function deleteUser(userId) {
     } catch (error) {
         showMessage('usersMessage', error.message || 'Error deleting user', 'error', 0);
     }
+}
+
+function handleUserAction(select, userId) {
+    const action = select.value;
+    select.value = '';
+    if (action === 'reset-password') resetUserPassword(userId);
+    else if (action === 'delete') deleteUser(userId);
 }
 
 async function resetUserPassword(userId) {

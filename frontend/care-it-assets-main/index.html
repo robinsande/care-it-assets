@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CARE IT Asset Management System</title>
     <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260910a">
-    <link rel="stylesheet" href="style.css?v=20260910a">
+    <link rel="stylesheet" href="style.css?v=20261012-actions">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -486,9 +486,14 @@
                     <div class="admin-landing-date"><span id="adminPanelDate"></span></div>
                 </div>
                 <div class="admin-quick-actions">
-                    <button id="createUserQuickAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">+ Add User</button>
-                    <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
-                    <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
+                    <details class="action-dropdown">
+                        <summary>Actions</summary>
+                        <div class="action-dropdown-menu">
+                            <button id="createUserQuickAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">+ Add User</button>
+                            <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
+                            <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
+                        </div>
+                    </details>
                 </div>
             </section>
 
@@ -514,7 +519,12 @@
             <div class="page-header">
                 <h1>User & Asset Operations</h1>
                 <div class="header-actions">
-                    <button id="createUserHeaderAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">Add User</button>
+                    <details class="action-dropdown">
+                        <summary>Actions</summary>
+                        <div class="action-dropdown-menu">
+                            <button id="createUserHeaderAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">Add User</button>
+                        </div>
+                    </details>
                 </div>
             </div>
 
@@ -1098,6 +1108,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261006-temporary-password"></script>
+    <script src="script.js?v=20261012-actions"></script>
 </body>
 </html>

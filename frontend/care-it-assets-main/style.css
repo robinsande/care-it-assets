@@ -497,6 +497,24 @@ body.dark-mode .theme-toggle:hover {
     flex-wrap: wrap;
 }
 
+.action-dropdown { position: relative; }
+.action-dropdown > summary {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
+    border-radius: 6px; background: #6b7280; color: white; cursor: pointer;
+    font-weight: 500; list-style: none;
+}
+.action-dropdown > summary::-webkit-details-marker { display: none; }
+.action-dropdown > summary::after { content: '▾'; }
+.action-dropdown[open] > summary, .action-dropdown > summary:hover { background: #4b5563; }
+.action-dropdown-menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
+    display: flex; flex-direction: column; gap: 6px; min-width: 190px; padding: 8px;
+    border: 1px solid #e5e7eb; border-radius: 8px; background: white;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+.action-dropdown-menu .btn { width: 100%; justify-content: flex-start; white-space: nowrap; }
+.admin-quick-actions .action-dropdown-menu { left: 0; right: auto;}
+
 /* ========================================
    FILTERS
    ======================================== */
@@ -549,7 +567,8 @@ body.dark-mode .theme-toggle:hover {
     gap: 8px;
 }
 
-.asset-action-select {
+.asset-action-select,
+.table-action-select {
     width: auto;
     min-width: 100px;
     padding: 6px 10px;
@@ -561,11 +580,13 @@ body.dark-mode .theme-toggle:hover {
     font-size: 0.875rem;
 }
 
-.asset-action-select:hover {
+.asset-action-select:hover,
+.table-action-select:hover {
     background-color: #4b5563;
 }
 
-.asset-action-select option {
+.asset-action-select option,
+.table-action-select option {
     background-color: white;
     color: #1f2937;
 }
@@ -1131,7 +1152,8 @@ body.dark-mode .theme-toggle:hover {
     border: 1px solid rgba(255, 92, 0, 0.16);
     box-shadow: 0 12px 36px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
     position: relative;
-    overflow: hidden;
+    z-index: 2;
+    overflow: visible;
     animation: slideIn 0.4s cubic-bezier(.2,.8,.2,1) both;
 }
 
