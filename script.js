@@ -2397,6 +2397,7 @@ function showAssignForm(assetId) {
 function showReturnForm(assetId) {
     const content = document.getElementById('assetDetailsContent');
     if (content.querySelector('#returnAssetForm')) return;
+    const asset = allAssets.find(item => item._id === assetId);
 
     let formHTML = '<form id="returnAssetForm" onsubmit="submitReturnForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Return Asset</h3>';
@@ -2405,6 +2406,7 @@ function showReturnForm(assetId) {
     formHTML += '<div class="form-group"><label for="returnCondition">Condition *</label><select id="returnCondition" required><option value="">Select Condition</option><option value="New">New</option><option value="Good">Good</option><option value="Faulty">Faulty</option><option value="BER">BER</option><option value="Damaged">Damaged</option></select></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Return</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
     content.innerHTML += formHTML;
+    document.getElementById('returnedBy').value = asset ? asset.assignedTo || '' : '';
 }
 
 async function submitAssignForm(event, assetId) {
