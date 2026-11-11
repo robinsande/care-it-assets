@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CARE IT Asset Management System</title>
-    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260929a">
+    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20261012-actions">
     <link rel="stylesheet" href="style.css?v=20261012-actions">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -38,6 +38,9 @@
                 <div class="auth-footer">
                     <p>
                         <a href="#" class="auth-link" onclick="switchPage('forgotPasswordPage'); return false;">Forgot Password?</a>
+                    </p>
+                    <p>Don't have an account? 
+                        <a href="#" class="auth-link" onclick="switchPage('registerPage'); return false;">Create one</a>
                     </p>
                 </div>
             </div>
@@ -155,6 +158,44 @@
                     <button type="submit" class="btn btn-primary" id="changePasswordBtn" style="width: 100%;">Change Password</button>
                 </form>
                 <p class="auth-footer"><a href="#" class="auth-link" onclick="logout(); return false;">Sign out</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Page -->
+    <div id="registerPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Create your account</p>
+
+                <div id="registerMessage" class="alert" style="display: none;"></div>
+
+                <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="registerName">Full Name</label>
+                        <input id="registerName" type="text" placeholder="Enter your full name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerEmail">Email Address</label>
+                        <input id="registerEmail" type="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input id="registerPassword" type="password" placeholder="Enter your password" required minlength="6">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="registerBtn" style="width: 100%;">
+                        Create Account
+                    </button>
+                </form>
+
+                <p class="auth-footer">
+                    Already have an account? 
+                    <a href="#" class="auth-link" onclick="switchPage('userLoginPage'); return false;">Sign in</a>
+                </p>
             </div>
         </div>
     </div>
@@ -489,10 +530,9 @@
                     <details class="action-dropdown">
                         <summary>Actions</summary>
                         <div class="action-dropdown-menu">
-                            <button id="createUserQuickAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">+ Add User</button>
+                            <button class="btn btn-primary" onclick="focusAdminSection('createUserForm')">+ Add User</button>
                             <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
                             <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
-                            <button class="btn btn-secondary" onclick="focusAdminSection('activityLogsSection')">View Activity Logs</button>
                         </div>
                     </details>
                 </div>
@@ -511,7 +551,7 @@
                     <span class="admin-summary-icon">&#8599;</span>
                     <span><strong>Issue Desk</strong><small>Borrow and staff equipment</small></span>
                 </button>
-                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('usersTableBody')">
+                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('createUserForm')">
                     <span class="admin-summary-icon">&#10003;</span>
                     <span><strong>Access Control</strong><small>Roles and passwords</small></span>
                 </button>
@@ -519,22 +559,17 @@
 
             <div class="page-header">
                 <h1>User & Asset Operations</h1>
-                <div class="header-actions">
+                <div class="header-actions" id="userHeaderActions">
                     <details class="action-dropdown">
                         <summary>Actions</summary>
                         <div class="action-dropdown-menu">
-                            <button id="createUserHeaderAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">Add User</button>
+                            <button class="btn btn-primary" onclick="openUserCreateModal()">Add User</button>
                         </div>
                     </details>
                 </div>
             </div>
 
             <div id="usersMessage" class="alert" style="display: none;"></div>
-            <div id="createdUserCredentials" class="alert success" role="status" aria-live="polite" style="display: none;">
-                <p>User created. Share this temporary password securely; it will only be shown now.</p>
-                <p><strong>Temporary password: </strong><code id="createdUserTemporaryPassword"></code></p>
-                <p>The user must change this password at first sign-in.</p>
-            </div>
 
             <div class="grid grid-2">
                 <div id="adminCreateUserSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
@@ -548,12 +583,15 @@
                             <label for="newUserEmail">Email *</label>
                             <input id="newUserEmail" type="email" required>
                         </div>
-                        <p>A secure temporary password will be generated automatically.</p>
+                        <div class="form-group">
+                            <label for="newUserPassword">Password *</label>
+                            <input id="newUserPassword" type="password" minlength="6" required>
+                        </div>
                         <div class="form-group">
                             <label for="newUserRole">Role *</label>
                             <select id="newUserRole" required>
-                                <option value="viewer" selected>Viewer</option>
                                 <option value="user">User</option>
+                                <option value="viewer">Viewer</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
@@ -564,10 +602,6 @@
                 <div id="adminReturnSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
                     <div class="admin-form-heading"><h2 style="margin-top: 0;">Returned Asset Not in System</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminReturnSection')">Close</button></div>
                     <form id="returnedAssetForm" onsubmit="submitReturnedAsset(event)">
-                        <div class="form-group">
-                            <label for="returnedAssetTag">Asset Tag *</label>
-                            <input id="returnedAssetTag" type="text" placeholder="e.g., LAP001" required>
-                        </div>
                         <div class="form-group">
                             <label for="returnedDescription">Description *</label>
                             <input id="returnedDescription" type="text" placeholder="e.g., Dell charger, HP monitor, projector" required>
@@ -738,34 +772,6 @@
                     </table>
                 </div>
             </div>
-
-            <section id="activityLogsSection" class="card" style="padding: 20px; margin-bottom: 20px;">
-                <div class="page-header" style="margin-bottom: 16px;">
-                    <h2 style="margin: 0;">User Activity Logs</h2>
-                    <div class="header-actions">
-                        <input id="activityLogSearch" type="search" placeholder="Filter user, action, asset, or category" oninput="filterActivityLogs()" aria-label="Filter activity logs">
-                        <button type="button" class="btn btn-secondary btn-small" onclick="loadActivityLogs()">Refresh</button>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>When</th>
-                                <th>User</th>
-                                <th>Role</th>
-                                <th>Action</th>
-                                <th>Item</th>
-                                <th>Category</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="activityLogsTable">
-                            <tr><td colspan="7" class="text-center">Loading activity...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
         </div>
     </div>
 
@@ -969,7 +975,7 @@
                     <input
                         type="text"
                         id="purchaseSearchInput"
-                        placeholder="Search by serial number, brand, model, staff, or vendor..."
+                        placeholder="🔍 Search by Item Tag, Brand, Model, Serial, Supplier, Invoice..."
                         onkeyup="filterPurchaseItems()"
                     >
                 </div>
@@ -988,6 +994,45 @@
                     <option value="Laptop Charger">Laptop Charger</option>
                 </select>
 
+                <select id="purchaseStatusFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Statuses</option>
+                    <option value="In Stock">In Stock</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="Used">Used</option>
+                    <option value="Damaged">Damaged</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+
+                <select id="purchaseLocationFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Locations</option>
+                    <option value="Regional Office">Regional Office</option>
+                    <option value="Nairobi">Nairobi</option>
+                    <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                    <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                    <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                    <option value="RMU Stores">RMU Stores</option>
+                    <option value="Kisumu">Kisumu</option>
+                    <option value="Migori">Migori</option>
+                    <option value="Busia">Busia</option>
+                    <option value="Nakuru">Nakuru</option>
+                    <option value="Kajiado">Kajiado</option>
+                    <option value="Garissa">Garissa</option>
+                    <option value="Dadaab">Dadaab</option>
+                    <option value="Dadaab-DMO">Dadaab-DMO</option>
+                    <option value="IFO">IFO</option>
+                    <option value="Hagadera">Hagadera</option>
+                    <option value="Dagahaley">Dagahaley</option>
+                </select>
+
+                <select id="purchaseConditionFilter" onchange="filterPurchaseItems()">
+                    <option value="">All Conditions</option>
+                    <option value="New">New</option>
+                    <option value="Good">Good</option>
+                    <option value="Faulty">Faulty</option>
+                    <option value="BER">BER</option>
+                    <option value="Damaged">Damaged</option>
+                </select>
+
                 <button type="button" class="btn btn-secondary btn-small" onclick="clearPurchaseFilters()">✕ Clear Filters</button>
             </div>
 
@@ -996,21 +1041,24 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>Item Tag</th>
                             <th>Category</th>
+                            <th>Brand / Model</th>
                             <th>Serial Number</th>
-                            <th>Brand</th>
-                            <th>Model</th>
+                            <th>Qty</th>
                             <th>Purchase Date</th>
-                            <th>Purchased For</th>
                             <th>Price</th>
-                            <th>Vendor</th>
-                            <th>Received By</th>
+                            <th>Supplier</th>
+                            <th>Invoice #</th>
+                            <th>Status</th>
+                            <th>Location</th>
+                            <th>Condition</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="purchaseTableBody">
                         <tr>
-                            <td colspan="10" class="text-center">Loading...</td>
+                            <td colspan="13" class="text-center">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1030,7 +1078,7 @@
                 <div class="grid grid-2">
                     <div class="form-group">
                         <label for="assetTag">Asset Tag *</label>
-                        <input id="assetTag" type="text" required placeholder="e.g., LAP001 or NO TAG">
+                        <input id="assetTag" type="text" required placeholder="e.g., LAP001">
                     </div>
 
                     <div class="form-group">
@@ -1306,8 +1354,13 @@
             <form id="purchaseItemForm" onsubmit="submitPurchaseItemForm(event)">
                 <div class="grid grid-2">
                     <div class="form-group">
-                        <label for="purchaseItemCategory">Category *</label>
-                        <select id="purchaseItemCategory" required>
+                        <label for="purchaseItemTag">Item Tag *</label>
+                        <input id="purchaseItemTag" type="text" required placeholder="e.g., PUR-001" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseCategory">Category *</label>
+                        <select id="purchaseCategory" required>
                             <option value="">Select Category</option>
                             <option value="Laptops">Laptops</option>
                             <option value="Mobile Phones">Mobile Phones</option>
@@ -1321,39 +1374,44 @@
                             <option value="Laptop Charger">Laptop Charger</option>
                         </select>
                     </div>
+
                     <div class="form-group">
-                        <label for="purchaseItemSerialNumber">Serial Number</label>
-                        <input id="purchaseItemSerialNumber" type="text">
+                        <label for="purchaseSerialNumber">Serial Number</label>
+                        <input id="purchaseSerialNumber" type="text">
                     </div>
+
                     <div class="form-group">
-                        <label for="purchaseItemBrand">Brand</label>
-                        <input id="purchaseItemBrand" type="text" placeholder="e.g., Dell, HP">
+                        <label for="purchaseLocation">Location Received *</label>
+                        <select id="purchaseLocation" required>
+                            <option value="">Select Location</option>
+                            <option value="Regional Office">Regional Office</option>
+                            <option value="Nairobi">Nairobi</option>
+                            <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                            <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                            <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                            <option value="RMU Stores">RMU Stores</option>
+                            <option value="Kisumu">Kisumu</option>
+                            <option value="Migori">Migori</option>
+                            <option value="Busia">Busia</option>
+                            <option value="Nakuru">Nakuru</option>
+                            <option value="Kajiado">Kajiado</option>
+                            <option value="Garissa">Garissa</option>
+                            <option value="Dadaab">Dadaab</option>
+                            <option value="Dadaab-DMO">Dadaab-DMO</option>
+                            <option value="IFO">IFO</option>
+                            <option value="Hagadera">Hagadera</option>
+                            <option value="Dagahaley">Dagahaley</option>
+                        </select>
                     </div>
+
                     <div class="form-group">
-                        <label for="purchaseItemModel">Model</label>
-                        <input id="purchaseItemModel" type="text" placeholder="e.g., Inspiron 15">
-                    </div>
-                    <div class="form-group">
-                        <label for="purchaseItemPurchaseDate">Purchase Date *</label>
-                        <input id="purchaseItemPurchaseDate" type="date" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="purchaseItemPurchasedFor">Staff Purchased For</label>
-                        <input id="purchaseItemPurchasedFor" type="text" placeholder="Staff name">
-                    </div>
-                    <div class="form-group">
-                        <label for="purchaseItemPurchasePrice">Purchase Price (KES)</label>
-                        <input id="purchaseItemPurchasePrice" type="number" placeholder="Amount">
-                    </div>
-                    <div class="form-group">
-                        <label for="purchaseItemVendor">Vendor</label>
-                        <input id="purchaseItemVendor" type="text" placeholder="Vendor name">
-                    </div>
-                    <div class="form-group">
-                        <label for="purchaseItemReceivedBy">Received By</label>
-                        <input id="purchaseItemReceivedBy" type="text" placeholder="Receiving person's name">
+                        <label for="purchaseDate">Purchase Date *</label>
+                        <input id="purchaseDate" type="date" required>
                     </div>
                 </div>
+
+                <p class="form-hint" style="margin-top: 8px;">
+                    Defaults applied automatically: Quantity = 1, Status = In Stock, Condition = New. You can edit other fields later via Edit.</p>
 
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">

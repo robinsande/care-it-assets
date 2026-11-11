@@ -1,43 +1,18 @@
 // ========================================
 // CONFIGURATION
 // ========================================
-const API_URL = 'https://care-it-backend.onrender.com/api';
+const API_URL = 'https://assetsbackend.ck-apps.com/api';
 const API_TIMEOUT = 15000;
-const HEALTH_TIMEOUT = 120000;
-
-async function fetchWithTimeout(url, options, timeoutMs) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-        clearTimeout(timeoutId);
-    }
-}
-
-async function warmBackend() {
-    const healthUrl = API_URL.replace(/\/api\/?$/, '') + '/health';
-    try {
-        await fetchWithTimeout(healthUrl, { method: 'GET', cache: 'no-store' }, HEALTH_TIMEOUT);
-    } catch (error) {
-        console.warn('Backend warm-up failed:', error.message);
-    }
-}
-
-function startBackendKeepAlive() {
-    warmBackend();
-    window.setInterval(() => {
-        if (document.visibilityState === 'visible') warmBackend();
-    }, 4 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') warmBackend();
-    });
-}
+const HEALTH_TIMEOUT = 8000;
+const API_RETRY_DELAYS = [250, 750];
 
 // ========================================
 // STATE MANAGEMENT
 // ========================================
 let allAssets = [];
+let allPurchaseItems = [];
+let allActivityLogs = [];
+let editingPurchaseItemId = null;
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
@@ -95,6 +70,36 @@ function animateCount(elementId, target, duration = 900) {
 // ========================================
 // API CALL HELPER
 // ========================================
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function warmBackend() {
+    const healthUrl = API_URL.replace(/\/api\/?$/, '') + '/health';
+    try {
+        await fetchWithTimeout(healthUrl, { method: 'GET', cache: 'no-store' }, HEALTH_TIMEOUT);
+        perfLog('backend:warm');
+    } catch (error) {
+        perfLog('backend:warm-failed', { message: error.message });
+    }
+}
+
+function startBackendKeepAlive() {
+    warmBackend();
+    window.setInterval(() => {
+        if (document.visibilityState === 'visible') warmBackend();
+    }, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') warmBackend();
+    });
+}
+
 async function apiCall(endpoint, method = 'GET', data = null) {
     const requestStartedAt = performance.now();
     perfLog('api:start', { endpoint, method });
@@ -116,12 +121,21 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         options.body = JSON.stringify(data);
     }
 
-    let timeoutId;
     try {
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
-        const response = await fetch(`${API_URL}${endpoint}`, { ...options, signal: controller.signal });
+        let response;
+        for (let attempt = 0; ; attempt++) {
+            try {
+                response = await fetchWithTimeout(`${API_URL}${endpoint}`, options, API_TIMEOUT);
+                if (response.status >= 500 && attempt < API_RETRY_DELAYS.length) {
+                    await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAYS[attempt]));
+                    continue;
+                }
+                break;
+            } catch (error) {
+                if (attempt >= API_RETRY_DELAYS.length) throw error;
+                await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAYS[attempt]));
+            }
+        }
         perfLog('api:response', { endpoint, method, status: response.status, durationMs: Math.round(performance.now() - requestStartedAt) });
 
         if (response.status === 401) {
@@ -165,7 +179,6 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         }
         throw error;
     } finally {
-        if (timeoutId) clearTimeout(timeoutId);
         perfLog('api:end', { endpoint, method, durationMs: Math.round(performance.now() - requestStartedAt) });
     }
 }
@@ -236,16 +249,12 @@ function isAdmin() {
     return ['admin', 'superadmin'].includes(getUserRole());
 }
 
-function isSuperAdmin() {
-    return getUserRole() === 'superadmin';
+function canAddRecords() {
+    return ['user', 'admin', 'superadmin'].includes(getUserRole());
 }
 
-function updateUserCreationControls() {
-    const isSuper = isSuperAdmin();
-    ['createUserQuickAction', 'createUserHeaderAction'].forEach(id => {
-        const action = document.getElementById(id);
-        if (action) action.style.display = isSuper ? '' : 'none';
-    });
+function isSuperAdmin() {
+    return getUserRole() === 'superadmin';
 }
 
 function logout() {
@@ -293,7 +302,7 @@ function switchPage(pageId, options = {}) {
         }
     }
 
-    if (!options.skipSave && pageId !== 'userLoginPage') {
+    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
         try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
     }
 
@@ -304,11 +313,16 @@ function switchPage(pageId, options = {}) {
         renderHeader('headerAssets');
         renderHeaderActions();
         loadAssets();
+    } else if (pageId === 'purchaseItemsPage') {
+        renderHeader('headerPurchaseItems');
+        renderPurchaseHeaderActions();
+        loadPurchaseItems();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
         const adminDate = document.getElementById('adminPanelDate');
         if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         loadUsers();
+        loadActivityLogs();
     } else if (pageId === 'reportsPage') {
         renderHeader('headerReports');
         loadReports();
@@ -316,10 +330,13 @@ function switchPage(pageId, options = {}) {
 }
 
 function initializeApp() {
+    document.querySelectorAll('.page').forEach(page => {
+        page.style.display = 'none';
+    });
     if (isAuthenticated()) {
         let savedPage = null;
         try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
-        const validPages = ['dashboardPage', 'assetsPage', 'usersPage', 'reportsPage'];
+        const validPages = ['dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
         if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
             switchPage(savedPage);
         } else {
@@ -342,7 +359,7 @@ function renderHeader(headerId = 'header') {
     const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
 
     let adminLinkHTML = '';
-    if (['admin', 'superadmin'].includes(userRole)) {
+    if (isAdmin()) {
         adminLinkHTML = '<a href="#" onclick="switchPage(\'usersPage\'); return false;">Admin Panel</a>';
     }
 
@@ -354,6 +371,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<nav class="header-nav">';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
+    headerHTML += '<a href="#" onclick="switchPage(\'purchaseItemsPage\'); return false;">Purchase Items</a>';
     headerHTML += adminLinkHTML;
     headerHTML += '</nav>';
     headerHTML += '<div class="header-right">';
@@ -384,9 +402,26 @@ function renderHeaderActions() {
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     } else {
-        actionsHTML = '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
+        actionsHTML = canAddRecords() ? '<button class="btn btn-primary" onclick="openAssetModal()">Add Asset</button>' : '';
+        actionsHTML += '<button class="btn btn-secondary" onclick="exportToExcel()">Export Excel</button>';
         actionsHTML += '<button class="btn btn-secondary" onclick="exportToPdf()">Export PDF</button>';
     }
+
+    headerActions.innerHTML = createActionDropdown(actionsHTML);
+}
+
+function renderPurchaseHeaderActions() {
+    const headerActions = document.getElementById('purchaseHeaderActions');
+    if (!headerActions) return;
+
+    const userRole = getUserRole();
+    let actionsHTML = '';
+
+    if (canAddRecords()) {
+        actionsHTML = '<button class="btn btn-primary" onclick="openPurchaseItemModal()">+ Add Purchase Item</button>';
+    }
+    actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchaseExcel()">Export Excel</button>';
+    actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchasePdf()">Export PDF</button>';
 
     headerActions.innerHTML = createActionDropdown(actionsHTML);
 }
@@ -427,7 +462,7 @@ async function handleUserLogin(event) {
     const loginStartedAt = performance.now();
     perfLog('login:submit');
 
-    const email = document.getElementById('userLoginEmail').value;
+    const email = document.getElementById('userLoginEmail').value.trim();
     const password = document.getElementById('userLoginPassword').value;
     const loginBtn = document.getElementById('userLoginBtn');
 
@@ -435,7 +470,44 @@ async function handleUserLogin(event) {
         loginBtn.disabled = true;
         loginBtn.textContent = 'Signing in...';
 
-        const response = await apiCall('/auth/login', 'POST', { email, password });
+        warmBackend();
+
+        let response = null;
+        let lastError = null;
+
+        const doLogin = async () => {
+            try {
+                return await apiCall('/auth/login', 'POST', { email, password });
+            } catch (err) {
+                return { __error: err };
+            }
+        };
+
+        response = await doLogin();
+
+        if (response && response.__error) {
+            const msg = (response.__error.message || '').toLowerCase();
+            if (
+                response.__error.message &&
+                (msg.includes('database is waking up') || msg.includes('503') || msg.includes('server error: 503'))
+            ) {
+                showMessage('userLoginMessage', 'Database starting up — retrying automatically…', 'info', 5000);
+                await new Promise(r => setTimeout(r, 4000));
+                const retry = await doLogin();
+                if (retry && retry.__error) {
+                    lastError = retry.__error;
+                    response = null;
+                } else {
+                    response = retry;
+                }
+            } else {
+                lastError = response.__error;
+                response = null;
+            }
+        }
+
+        if (lastError) throw lastError;
+
         perfLog('login:credentials-verified', { durationMs: Math.round(performance.now() - loginStartedAt) });
 
         if (!response || !response.token) {
@@ -594,6 +666,32 @@ async function handleChangePassword(event) {
     }
 }
 
+async function handleRegister(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('registerName').value;
+    const email = document.getElementById('registerEmail').value;
+    const password = document.getElementById('registerPassword').value;
+    const registerBtn = document.getElementById('registerBtn');
+
+    try {
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Creating account...';
+
+        await apiCall('/auth/register', 'POST', { name, email, password });
+
+        showMessage('registerMessage', 'Account created! Redirecting to login...', 'success', 2000);
+
+        setTimeout(() => {
+            switchPage('userLoginPage');
+        }, 2000);
+    } catch (error) {
+        showMessage('registerMessage', error.message || 'Registration failed', 'error', 0);
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Create Account';
+    }
+}
+
 // ========================================
 // DASHBOARD FUNCTIONS
 // ========================================
@@ -613,6 +711,36 @@ async function loadDashboardData() {
     const dashboardStartedAt = performance.now();
     perfLog('dashboard:load-start');
     try {
+        const _totalAssetsValueEl = document.getElementById('totalAssetsValue');
+        if (_totalAssetsValueEl) _totalAssetsValueEl.textContent = 'Loading…';
+        const _totalAssetsEl = document.getElementById('totalAssets');
+        if (_totalAssetsEl) _totalAssetsEl.textContent = '…';
+        const _availableAssetsEl = document.getElementById('availableAssets');
+        if (_availableAssetsEl) _availableAssetsEl.textContent = '…';
+        const _assignedAssetsEl = document.getElementById('assignedAssets');
+        if (_assignedAssetsEl) _assignedAssetsEl.textContent = '…';
+        const _storageAssetsEl = document.getElementById('storageAssets');
+        if (_storageAssetsEl) _storageAssetsEl.textContent = '…';
+        const _repairAssetsEl = document.getElementById('repairAssets');
+        if (_repairAssetsEl) _repairAssetsEl.textContent = '…';
+        const _lostAssetsEl = document.getElementById('lostAssets');
+        if (_lostAssetsEl) _lostAssetsEl.textContent = '…';
+        const _statusWidgetBody = document.getElementById('statusWidgetBody');
+        const _statusTbody = document.getElementById('statusTableBody') || _statusWidgetBody;
+        if (_statusTbody) _statusTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _locationTbody = document.getElementById('locationTableBody');
+        if (_locationTbody) _locationTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _deptTbody = document.getElementById('departmentTableBody');
+        if (_deptTbody) _deptTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _catAllTbody = document.getElementById('categoryAllTableBody');
+        if (_catAllTbody) _catAllTbody.innerHTML = '<tr><td colspan="3" class="text-center">Loading…</td></tr>';
+        const _healthTbody = document.getElementById('categoryHealthTableBody');
+        if (_healthTbody) _healthTbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading…</td></tr>';
+        const _recentAssetsTbody = document.getElementById('recentAssetsBody');
+        if (_recentAssetsTbody) _recentAssetsTbody.innerHTML = '<tr><td colspan="9" class="text-center">Loading…</td></tr>';
+        const _recentActivityTbody = document.getElementById('recentActivityBody');
+        if (_recentActivityTbody) _recentActivityTbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading…</td></tr>';
+
         // Set dashboard date
         const dateEl = document.querySelector('#dashboardDate span');
         if (dateEl) {
@@ -955,7 +1083,7 @@ async function loadDashboardData() {
 
             // 2) Duplicate assetTag / serialNumber check (unique identifier conflicts)
             const tagCounts = {};
-            assetsData.forEach(a => { if (!a.assetTag) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
+            assetsData.forEach(a => { if (!a.assetTag || /(?:^|[^a-z0-9])no\s+tag$/i.test(a.assetTag.trim())) return; const k = a.assetTag.trim().toLowerCase(); tagCounts[k] = (tagCounts[k] || 0) + 1; });
             const dupTags = Object.entries(tagCounts).filter(([, v]) => v > 1);
             if (dupTags.length > 0) warnings.push('🏷️ ' + dupTags.length + ' duplicate Asset Tags found: ' + dupTags.slice(0, 5).map(([k, v]) => k + '×' + v).join(', ') + (dupTags.length > 5 ? ' …' : ''));
 
@@ -1016,6 +1144,21 @@ async function loadDashboardData() {
         perfLog('dashboard:interactive', { durationMs: Math.round(performance.now() - dashboardStartedAt), assetCount: assetsData.length });
     } catch (error) {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
+        const _errStatusWidget = document.getElementById('statusWidgetBody');
+        const _errStatusTbody = document.getElementById('statusTableBody') || _errStatusWidget;
+        if (_errStatusTbody) _errStatusTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errLocationTbody = document.getElementById('locationTableBody');
+        if (_errLocationTbody) _errLocationTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errDeptTbody = document.getElementById('departmentTableBody');
+        if (_errDeptTbody) _errDeptTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errCatAllTbody = document.getElementById('categoryAllTableBody');
+        if (_errCatAllTbody) _errCatAllTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errHealthTbody = document.getElementById('categoryHealthTableBody');
+        if (_errHealthTbody) _errHealthTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errRecentAssetsTbody = document.getElementById('recentAssetsBody');
+        if (_errRecentAssetsTbody) _errRecentAssetsTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        const _errRecentActivityTbody = document.getElementById('recentActivityBody');
+        if (_errRecentActivityTbody) _errRecentActivityTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
     }
 }
 
@@ -1427,23 +1570,24 @@ function hideAdminSection(sectionId) {
 }
 
 async function loadUsers() {
-    updateUserCreationControls();
+    const tbody = document.getElementById('usersTableBody');
+    const userTableBody = document.getElementById('userTableBody') || tbody;
+    if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
     try {
         const users = await apiCall('/users', 'GET');
-        const tbody = document.getElementById('usersTableBody');
-        if (!tbody) return;
+        if (!userTableBody) return;
 
         if (!users || !users.length) {
             const count = document.getElementById('adminUserCount');
             if (count) count.textContent = '0';
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
+            userTableBody.innerHTML = '<tr><td colspan="5" class="text-center no-data">No users found</td></tr>';
             return;
         }
 
         const count = document.getElementById('adminUserCount');
         if (count) count.textContent = users.length;
 
-        tbody.innerHTML = users.map(user => {
+        userTableBody.innerHTML = users.map(user => {
             const canDelete = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
             const canEditRole = isSuperAdmin() || (user.role !== 'superadmin' && isAdmin());
             const canResetPassword = canEditRole;
@@ -1483,22 +1627,75 @@ async function loadUsers() {
         });
     } catch (error) {
         showMessage('usersMessage', 'Error loading users: ' + error.message, 'error', 0);
+        if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load users: ' + error.message + '</td></tr>';
     }
 }
 
-function openUserCreateModal() {
-    if (!isSuperAdmin()) {
-        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
+function handleUserAction(select, userId) {
+    const action = select.value;
+    select.value = '';
+
+    if (action === 'reset-password') {
+        resetUserPassword(userId);
+    } else if (action === 'delete') {
+        deleteUser(userId);
+    }
+}
+
+function escapeActivityLogText(value) {
+    return String(value ?? '-').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
+
+async function loadActivityLogs() {
+    const tbody = document.getElementById('activityLogsTable');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading activity...</td></tr>';
+    try {
+        allActivityLogs = await apiCall('/activity-logs?limit=200', 'GET') || [];
+        filterActivityLogs();
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Unable to load activity logs</td></tr>';
+        showMessage('usersMessage', 'Error loading activity logs: ' + error.message, 'error', 0);
+    }
+}
+
+function filterActivityLogs() {
+    const tbody = document.getElementById('activityLogsTable');
+    if (!tbody) return;
+    const search = (document.getElementById('activityLogSearch')?.value || '').trim().toLowerCase();
+    const logs = allActivityLogs.filter(log => !search || [
+        log.actorEmail, log.actorRole, log.action, log.entityType, log.entityLabel, log.category, log.details
+    ].filter(Boolean).join(' ').toLowerCase().includes(search));
+
+    if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center no-data">No activity found</td></tr>';
         return;
     }
 
+    tbody.innerHTML = logs.map(log => {
+        const when = log.createdAt ? new Date(log.createdAt).toLocaleString() : '-';
+        return '<tr>' +
+            '<td>' + escapeActivityLogText(when) + '</td>' +
+            '<td>' + escapeActivityLogText(log.actorEmail) + '</td>' +
+            '<td>' + escapeActivityLogText(log.actorRole) + '</td>' +
+            '<td>' + escapeActivityLogText(log.action) + '</td>' +
+            '<td>' + escapeActivityLogText(log.entityLabel || log.entityType) + '</td>' +
+            '<td>' + escapeActivityLogText(log.category) + '</td>' +
+            '<td>' + escapeActivityLogText(log.details) + '</td>' +
+            '</tr>';
+    }).join('');
+}
+
+function openUserCreateModal() {
     const form = document.getElementById('createUserForm');
     if (!form) return;
     const roleSelect = document.getElementById('newUserRole');
     if (roleSelect) {
         const isSuper = isSuperAdmin();
-        roleSelect.innerHTML = '<option value="user">User</option>' +
-            '<option value="viewer">Viewer</option>' +
+        roleSelect.innerHTML = '<option value="viewer">Viewer</option>' +
+            '<option value="user">User</option>' +
             '<option value="admin">Admin</option>' +
             (isSuper ? '<option value="superadmin">Super Admin</option>' : '');
     }
@@ -1509,36 +1706,21 @@ function openUserCreateModal() {
 
 async function submitCreateUser(event) {
     event.preventDefault();
-    if (!isSuperAdmin()) {
-        showMessage('usersMessage', 'Only the super admin can create users', 'error', 0);
+    if (!isAdmin()) {
+        showMessage('usersMessage', 'Only admins can manage users', 'error');
         return;
     }
-
-    const credentialsMessage = document.getElementById('createdUserCredentials');
-    const temporaryPasswordElement = document.getElementById('createdUserTemporaryPassword');
-    if (credentialsMessage) credentialsMessage.style.display = 'none';
-    if (temporaryPasswordElement) temporaryPasswordElement.textContent = '';
 
     const payload = {
         name: document.getElementById('newUserName').value,
         email: document.getElementById('newUserEmail').value,
+        password: document.getElementById('newUserPassword').value,
         role: document.getElementById('newUserRole').value,
     };
 
     try {
-        const response = await apiCall('/users', 'POST', payload);
-        if (!response) {
-            throw new Error('User creation was denied or no response was returned.');
-        }
-        if (typeof response.temporaryPassword !== 'string') {
-            throw new Error('The account was created, but no temporary password was returned. Reset the password before sharing account details.');
-        }
-        if (!credentialsMessage || !temporaryPasswordElement) {
-            throw new Error('The account was created, but this page cannot display its temporary password. Reset the password before sharing account details.');
-        }
-
-        temporaryPasswordElement.textContent = response.temporaryPassword;
-        credentialsMessage.style.display = 'block';
+        await apiCall('/users', 'POST', payload);
+        showMessage('usersMessage', 'User created successfully', 'success');
         document.getElementById('createUserForm').reset();
         loadUsers();
     } catch (error) {
@@ -1561,13 +1743,6 @@ async function deleteUser(userId) {
     } catch (error) {
         showMessage('usersMessage', error.message || 'Error deleting user', 'error', 0);
     }
-}
-
-function handleUserAction(select, userId) {
-    const action = select.value;
-    select.value = '';
-    if (action === 'reset-password') resetUserPassword(userId);
-    else if (action === 'delete') deleteUser(userId);
 }
 
 async function resetUserPassword(userId) {
@@ -1594,6 +1769,7 @@ async function submitReturnedAsset(event) {
     }
 
     const payload = {
+        assetTag: document.getElementById('returnedAssetTag').value.trim(),
         description: document.getElementById('returnedDescription').value,
         category: document.getElementById('returnedCategory').value,
         brand: document.getElementById('returnedBrand').value,
@@ -1608,7 +1784,7 @@ async function submitReturnedAsset(event) {
 
     try {
         await apiCall('/returned-assets', 'POST', payload);
-        showMessage('usersMessage', 'Returned item recorded successfully', 'success');
+        showMessage('usersMessage', 'Returned item recorded and added to the asset list', 'success');
         document.getElementById('returnedAssetForm').reset();
     } catch (error) {
         showMessage('usersMessage', error.message || 'Unable to record returned item', 'error', 0);
@@ -1654,9 +1830,16 @@ function drillDownToAssets(filters = {}) {
 }
 
 async function loadAssets() {
+    const tbody = document.getElementById('assetsTableBody');
+    const assetTableBody = document.getElementById('assetTableBody') || tbody;
+    if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">Loading...</td></tr>';
     try {
         allAssets = await apiCall('/assets', 'GET');
-        renderAssetsTable(allAssets);
+        if (!allAssets || allAssets.length === 0) {
+            if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">No assets found</td></tr>';
+        } else {
+            renderAssetsTable(allAssets);
+        }
 
         let dd = null;
         try {
@@ -1700,6 +1883,7 @@ async function loadAssets() {
         }
     } catch (error) {
         showMessage('assetMessage', 'Error loading assets: ' + error.message, 'error', 0);
+        if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center" style="color:#dc2626">Failed to load assets: ' + error.message + '</td></tr>';
     }
 }
 
@@ -1730,12 +1914,12 @@ function renderAssetsTable(assets) {
         const isChecked = selectedAssetIds.includes(asset._id) ? 'checked' : '';
         const actionOptions = '<option value="" selected>Actions</option>' +
             '<option value="view">View</option>' +
-            (userRole === 'admin' ? '<option value="edit">Edit</option><option value="delete">Delete</option>' : '');
+            (isAdmin() ? '<option value="edit">Edit</option><option value="delete">Delete</option>' : '');
 
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons">' + '<select class="asset-action-select" data-asset-id="' + asset._id + '" aria-label="Asset actions" onchange="handleAssetAction(this, this.dataset.assetId)">' + actionOptions + '</select>' + '</div></td></tr>';
+        return '<tr data-asset-id="' + asset._id + '"><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons"><select class="asset-action-select" data-asset-id="' + asset._id + '" aria-label="Asset actions" onchange="handleAssetAction(this, this.dataset.assetId)">' + actionOptions + '</select></div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -1985,8 +2169,8 @@ function setLaptopSpecsVisibility(category) {
 }
 
 function openAssetModal() {
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can add assets', 'error');
+    if (!canAddRecords()) {
+        showMessage('assetMessage', 'Viewer access is read-only', 'error');
         return;
     }
 
@@ -2007,10 +2191,15 @@ function closeAssetModal() {
 async function submitAssetForm(event) {
     event.preventDefault();
 
-    if (!isAdmin()) {
-        showMessage('assetMessage', 'Only admins can manage assets', 'error');
+    if (editingAssetId ? !isAdmin() : !canAddRecords()) {
+        showMessage('assetMessage', 'You do not have permission to make this change', 'error');
         return;
     }
+
+    const scrollPosition = window.scrollY;
+    const editedAssetId = editingAssetId;
+    const originalRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+    const originalRowTop = originalRow ? originalRow.getBoundingClientRect().top : null;
 
     const category = document.getElementById('category').value;
     const selectedBundle = Array.from(document.querySelectorAll('.multi-asset-select:checked')).map(el => el.value);
@@ -2055,7 +2244,13 @@ async function submitAssetForm(event) {
         }
 
         closeAssetModal();
-        loadAssets();
+        await loadAssets();
+        const updatedRow = editedAssetId ? document.querySelector('[data-asset-id="' + editedAssetId + '"]') : null;
+        if (updatedRow && originalRowTop !== null) {
+            window.scrollBy(0, updatedRow.getBoundingClientRect().top - originalRowTop);
+        } else {
+            window.scrollTo(0, scrollPosition);
+        }
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
     }
@@ -2134,15 +2329,15 @@ async function viewAssetDetails(assetId) {
     }
 
     let actionButtons = '';
-    if (userRole === 'admin') {
+    if (isAdmin()) {
         actionButtons = '<button class="btn btn-primary" onclick="editAsset(\'' + asset._id + '\')">Edit Asset</button>';
     }
 
-    if (asset.status === 'Available') {
+    if (isAdmin() && asset.status === 'Available') {
         actionButtons += '<button class="btn btn-success" onclick="showAssignForm(\'' + asset._id + '\')">Assign Asset</button>';
     }
 
-    if (asset.status === 'Assigned') {
+    if (isAdmin() && asset.status === 'Assigned') {
         actionButtons += '<button class="btn btn-success" onclick="showReturnForm(\'' + asset._id + '\')">Return Asset</button>';
     }
 
@@ -2200,6 +2395,7 @@ function showReturnForm(assetId) {
     const content = document.getElementById('assetDetailsContent');
     let formHTML = '<form onsubmit="submitReturnForm(event, \'' + assetId + '\')" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
     formHTML += '<h3>Return Asset</h3>';
+    formHTML += '<p>Return date and time are recorded automatically when you confirm.</p>';
     formHTML += '<div class="form-group"><label for="returnedBy">Returned By *</label><input id="returnedBy" type="text" required placeholder="Employee name"></div>';
     formHTML += '<div class="form-group"><label for="returnCondition">Condition *</label><select id="returnCondition" required><option value="">Select Condition</option><option value="New">New</option><option value="Good">Good</option><option value="Faulty">Faulty</option><option value="BER">BER</option><option value="Damaged">Damaged</option></select></div>';
     formHTML += '<div style="display: flex; gap: 10px;"><button type="submit" class="btn btn-success" style="flex: 1;">Confirm Return</button><button type="button" class="btn btn-secondary" onclick="viewAssetDetails(\'' + assetId + '\')" style="flex: 1;">Cancel</button></div></form>';
@@ -2233,7 +2429,7 @@ async function submitReturnForm(event, assetId) {
     event.preventDefault();
 
     const data = {
-        returnedBy: document.getElementById('returnedBy').value,
+        returnedBy: document.getElementById('returnedBy').value.trim(),
         condition: document.getElementById('returnCondition').value,
     };
 
@@ -2360,6 +2556,345 @@ async function exportToPdf() {
         showMessage('assetMessage', 'PDF file downloaded', 'success');
     } catch (error) {
         showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+// ========================================
+// PURCHASE ITEMS FUNCTIONS
+// ========================================
+function formatDateDDMM(dateString) {
+    if (!dateString) return '-';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return day + '/' + month + '/' + year;
+}
+
+async function loadPurchaseItems() {
+    const tbody = document.getElementById('purchaseTableBody');
+    const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
+    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
+    try {
+        allPurchaseItems = await apiCall('/purchase-items', 'GET');
+        if (!allPurchaseItems || allPurchaseItems.length === 0) {
+            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center">No purchase items found</td></tr>';
+        } else {
+            renderPurchaseRows(allPurchaseItems);
+        }
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error loading purchase items: ' + error.message, 'error', 0);
+        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
+    }
+}
+
+function filterPurchaseItems() {
+    const searchTerm = (document.getElementById('purchaseSearchInput')?.value || '').toString().toLowerCase().trim();
+    const categoryFilter = document.getElementById('purchaseCategoryFilter')?.value || '';
+
+    let filtered = allPurchaseItems || [];
+
+    if (searchTerm) {
+        filtered = filtered.filter(item => {
+            const hay = [
+                item.serialNumber, item.brand, item.model, item.purchasedFor,
+                item.vendor, item.receivedBy
+            ].filter(Boolean).join(' ').toLowerCase();
+            return hay.includes(searchTerm);
+        });
+    }
+
+    if (categoryFilter) {
+        filtered = filtered.filter(item =>
+            (item.category || '').toString().trim().toLowerCase() === categoryFilter.toLowerCase()
+        );
+    }
+
+    renderPurchaseRows(filtered);
+}
+
+function clearPurchaseFilters() {
+    ['purchaseSearchInput', 'purchaseCategoryFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+    loadPurchaseItems();
+}
+
+function renderPurchaseRows(items) {
+    const tbody = document.getElementById('purchaseTableBody');
+    const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
+    if (!purchaseTableBodyEl) return;
+    const userRole = getUserRole();
+    const isAdminRole = isAdmin();
+
+    if (!items || items.length === 0) {
+        purchaseTableBodyEl.innerHTML = '<tr><td colspan="10" class="text-center no-data">No purchase items found</td></tr>';
+        return;
+    }
+
+    purchaseTableBodyEl.innerHTML = items.map(item => {
+        let actions = '';
+        if (isAdminRole) {
+            actions = '<select class="table-action-select" data-item-id="' + item._id + '" aria-label="Purchase item actions" onchange="handlePurchaseItemAction(this, this.dataset.itemId)">' +
+                '<option value="" selected>Actions</option>' +
+                '<option value="edit">Edit</option>' +
+                '<option value="delete">Delete</option>' +
+                '</select>';
+        }
+
+        return '<tr>' +
+            '<td>' + (item.category || '-') + '</td>' +
+            '<td>' + (item.serialNumber || '-') + '</td>' +
+            '<td>' + (item.brand || '-') + '</td>' +
+            '<td>' + (item.model || '-') + '</td>' +
+            '<td>' + formatDateDDMM(item.purchaseDate) + '</td>' +
+            '<td>' + (item.purchasedFor || '-') + '</td>' +
+            '<td>' + formatCurrency(item.purchasePrice) + '</td>' +
+            '<td>' + (item.vendor || '-') + '</td>' +
+            '<td>' + (item.receivedBy || '-') + '</td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function handlePurchaseItemAction(select, itemId) {
+    const action = select.value;
+    select.value = '';
+
+    if (action === 'edit') {
+        openPurchaseItemModal(itemId);
+    } else if (action === 'delete') {
+        deletePurchaseItem(itemId);
+    }
+}
+
+async function openPurchaseItemModal(id = null) {
+    if (id && !isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can edit purchase items', 'error');
+        return;
+    }
+    if (!id && !canAddRecords()) {
+        showMessage('purchaseMessage', 'Viewer access is read-only', 'error');
+        return;
+    }
+
+    editingPurchaseItemId = id;
+    const form = document.getElementById('purchaseItemForm');
+    const modal = document.getElementById('purchaseItemModal');
+    if (form) {
+        form.reset();
+        const purchaseDateEl = document.getElementById('purchaseItemPurchaseDate');
+        if (purchaseDateEl && !id) {
+            const today = new Date();
+            purchaseDateEl.value = today.toISOString().split('T')[0];
+        }
+    }
+
+    if (id) {
+        try {
+            const item = await apiCall('/purchase-items/' + id, 'GET');
+            if (item && form) {
+                const f = (fieldId, val) => { const el = document.getElementById(fieldId); if (el && val !== undefined && val !== null) el.value = val; };
+                f('purchaseItemCategory', item.category);
+                f('purchaseItemBrand', item.brand);
+                f('purchaseItemModel', item.model);
+                f('purchaseItemSerialNumber', item.serialNumber);
+                if (item.purchaseDate) f('purchaseItemPurchaseDate', new Date(item.purchaseDate).toISOString().split('T')[0]);
+                f('purchaseItemPurchasePrice', item.purchasePrice);
+                f('purchaseItemPurchasedFor', item.purchasedFor);
+                f('purchaseItemVendor', item.vendor);
+                f('purchaseItemReceivedBy', item.receivedBy);
+                const titleEl = document.getElementById('purchaseItemModalTitle');
+                if (titleEl) titleEl.textContent = 'Edit Purchase Item';
+            }
+        } catch (error) {
+            showMessage('purchaseMessage', 'Error loading purchase item: ' + error.message, 'error', 0);
+            return;
+        }
+    } else {
+        const titleEl = document.getElementById('purchaseItemModalTitle');
+        if (titleEl) titleEl.textContent = 'Add New Purchase Item';
+    }
+
+    if (modal) modal.style.display = 'flex';
+}
+
+function closePurchaseItemModal() {
+    const modal = document.getElementById('purchaseItemModal');
+    const form = document.getElementById('purchaseItemForm');
+    if (modal) modal.style.display = 'none';
+    if (form) form.reset();
+    editingPurchaseItemId = null;
+}
+
+async function submitPurchaseItemForm(evt) {
+    evt.preventDefault();
+    if (editingPurchaseItemId ? !isAdmin() : !canAddRecords()) {
+        showMessage('purchaseMessage', 'You do not have permission to make this change', 'error');
+        return;
+    }
+
+    const getVal = id => {
+        const el = document.getElementById(id);
+        return el ? el.value : '';
+    };
+
+    const formData = {
+        category: getVal('purchaseItemCategory'),
+        brand: getVal('purchaseItemBrand'),
+        model: getVal('purchaseItemModel'),
+        serialNumber: getVal('purchaseItemSerialNumber'),
+        purchaseDate: getVal('purchaseItemPurchaseDate'),
+        purchasePrice: getVal('purchaseItemPurchasePrice') ? Number(getVal('purchaseItemPurchasePrice')) : undefined,
+        purchasedFor: getVal('purchaseItemPurchasedFor'),
+        vendor: getVal('purchaseItemVendor'),
+        receivedBy: getVal('purchaseItemReceivedBy')
+    };
+
+    try {
+        if (editingPurchaseItemId) {
+            await apiCall('/purchase-items/' + editingPurchaseItemId, 'PUT', formData);
+            showMessage('purchaseMessage', 'Purchase item updated successfully', 'success');
+        } else {
+            await apiCall('/purchase-items', 'POST', formData);
+            showMessage('purchaseMessage', 'Purchase item created successfully', 'success');
+        }
+        closePurchaseItemModal();
+        loadPurchaseItems();
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function deletePurchaseItem(id) {
+    if (!isAdmin()) {
+        showMessage('purchaseMessage', 'Only admins can delete purchase items', 'error');
+        return;
+    }
+    if (!confirm('Delete this purchase item?')) return;
+
+    try {
+        await apiCall('/purchase-items/' + id, 'DELETE');
+        showMessage('purchaseMessage', 'Purchase item deleted successfully', 'success');
+        loadPurchaseItems();
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+// ========================================
+// FILTERED ASSET EXPORT FUNCTIONS
+// ========================================
+function extractFilenameFromDisposition(contentDisposition, fallback) {
+    if (!contentDisposition) return fallback;
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        try { return decodeURIComponent(utf8Match[1]); } catch (e) {}
+    }
+    const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+    if (match && match[1]) return match[1];
+    return fallback;
+}
+
+async function exportFilteredExcel() {
+    try {
+        const locationEl = document.getElementById('exportLocationFilter');
+        const departmentEl = document.getElementById('exportDepartmentFilter');
+        const categoryEl = document.getElementById('exportCategoryFilter');
+        const statusEl = document.getElementById('exportStatusFilter');
+        const params = new URLSearchParams();
+        if (locationEl && locationEl.value) params.append('location', locationEl.value);
+        if (departmentEl && departmentEl.value) params.append('department', departmentEl.value);
+        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
+        if (statusEl && statusEl.value) params.append('status', statusEl.value);
+        const qs = params.toString();
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/export/excel' + (qs ? '?' + qs : ''), {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'assets.xlsx');
+        downloadFile(blob, filename);
+        showMessage('assetMessage', 'Excel file downloaded', 'success');
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function exportFilteredPdf() {
+    try {
+        const locationEl = document.getElementById('exportLocationFilter');
+        const departmentEl = document.getElementById('exportDepartmentFilter');
+        const categoryEl = document.getElementById('exportCategoryFilter');
+        const statusEl = document.getElementById('exportStatusFilter');
+        const params = new URLSearchParams();
+        if (locationEl && locationEl.value) params.append('location', locationEl.value);
+        if (departmentEl && departmentEl.value) params.append('department', departmentEl.value);
+        if (categoryEl && categoryEl.value) params.append('category', categoryEl.value);
+        if (statusEl && statusEl.value) params.append('status', statusEl.value);
+        const qs = params.toString();
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/export/pdf' + (qs ? '?' + qs : ''), {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'assets.pdf');
+        downloadFile(blob, filename);
+        showMessage('assetMessage', 'PDF file downloaded', 'success');
+    } catch (error) {
+        showMessage('assetMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+function clearExportFilters() {
+    ['exportLocationFilter', 'exportDepartmentFilter', 'exportCategoryFilter', 'exportStatusFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = '';
+    });
+}
+
+// ========================================
+// PURCHASE EXPORT FUNCTIONS
+// ========================================
+async function exportPurchaseExcel() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/purchase-export/excel', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'purchase-items.xlsx');
+        downloadFile(blob, filename);
+        showMessage('purchaseMessage', 'Excel file downloaded', 'success');
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+async function exportPurchasePdf() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_URL + '/purchase-export/pdf', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Export failed');
+        const blob = await response.blob();
+        const filename = extractFilenameFromDisposition(response.headers.get('Content-Disposition'), 'purchase-items.pdf');
+        downloadFile(blob, filename);
+        showMessage('purchaseMessage', 'PDF file downloaded', 'success');
+    } catch (error) {
+        showMessage('purchaseMessage', 'Error: ' + error.message, 'error', 0);
     }
 }
 

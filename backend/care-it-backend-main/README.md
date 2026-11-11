@@ -1,5 +1,9 @@
 # care-it-backend
 
+## Render environment
+
+Set `JWT_EXPIRE=30d` in the deployed backend environment so authenticated sessions survive up to thirty days. A deliberate sign out still clears the browser session immediately.
+
 ## Password reset email setup
 
 Configure these environment variables in Render for Brevo email delivery:

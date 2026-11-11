@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CARE IT Asset Management System</title>
+    <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20260910a">
+    <link rel="stylesheet" href="style.css?v=20260910a">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- User Login Page -->
+    <div id="userLoginPage" class="page">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Login</p>
+                <p class="auth-description">Sign in to your account to manage assets</p>
+
+                <div id="userLoginMessage" class="alert" style="display: none;"></div>
+
+                <form id="userLoginForm" class="auth-form" onsubmit="handleUserLogin(event)">
+                    <div class="form-group">
+                        <label for="userLoginEmail">Email Address</label>
+                        <input id="userLoginEmail" type="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="userLoginPassword">Password</label>
+                        <input id="userLoginPassword" type="password" placeholder="Enter your password" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="userLoginBtn" style="width: 100%;">
+                        Sign In
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>
+                        <a href="#" class="auth-link" onclick="switchPage('forgotPasswordPage'); return false;">Forgot Password?</a>
+                    </p>
+                    <p>Don't have an account? 
+                        <a href="#" class="auth-link" onclick="switchPage('registerPage'); return false;">Create one</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Page -->
+    <div id="forgotPasswordPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Forgot Password</p>
+                <p class="auth-description">Enter your email to receive a verification code</p>
+
+                <div id="forgotPasswordMessage" class="alert" style="display: none;"></div>
+
+                <form id="forgotPasswordForm" class="auth-form" onsubmit="handleForgotPassword(event)">
+                    <div class="form-group">
+                        <label for="forgotPasswordEmail">Email Address</label>
+                        <input id="forgotPasswordEmail" type="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="forgotPasswordBtn" style="width: 100%;">
+                        Send Verification Code
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>
+                        <a href="#" class="auth-link" onclick="switchPage('userLoginPage'); return false;">Back to Login</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verify Code Page -->
+    <div id="verifyCodePage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Verify Code</p>
+                <p class="auth-description">Enter the 6-digit code sent to your email</p>
+
+                <div id="verifyCodeMessage" class="alert" style="display: none;"></div>
+
+                <form id="verifyCodeForm" class="auth-form" onsubmit="handleVerifyCode(event)">
+                    <div class="form-group">
+                        <label for="verificationCode">6-Digit Code</label>
+                        <input id="verificationCode" type="text" placeholder="000000" maxlength="6" pattern="[0-9]{6}" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="verifyCodeBtn" style="width: 100%;">
+                        Verify Code
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>
+                        <a href="#" class="auth-link" onclick="switchPage('forgotPasswordPage'); return false;">Back</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Page -->
+    <div id="resetPasswordPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Reset Password</p>
+                <p class="auth-description">Enter your new password</p>
+
+                <div id="resetPasswordMessage" class="alert" style="display: none;"></div>
+
+                <form id="resetPasswordForm" class="auth-form" onsubmit="handleResetPassword(event)">
+                    <div class="form-group">
+                        <label for="newPassword">New Password</label>
+                        <input id="newPassword" type="password" placeholder="Enter new password" required minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input id="confirmPassword" type="password" placeholder="Confirm password" required minlength="6">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="resetPasswordBtn" style="width: 100%;">
+                        Reset Password
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>
+                        <a href="#" class="auth-link" onclick="switchPage('userLoginPage'); return false;">Back to Login</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Required Password Change Page -->
+    <div id="changePasswordPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">Change Password</h1>
+                <p class="auth-subtitle">Your temporary password must be replaced before continuing.</p>
+                <div id="changePasswordMessage" class="alert" style="display: none;"></div>
+                <form id="changePasswordForm" class="auth-form" onsubmit="handleChangePassword(event)">
+                    <p class="auth-description">Your temporary password has already been verified. Choose a new password to continue.</p>
+                    <label for="changeNewPassword">New Password</label>
+                    <input id="changeNewPassword" type="password" placeholder="Enter your new password" required minlength="6">
+                    <label for="changeConfirmPassword">Confirm New Password</label>
+                    <input id="changeConfirmPassword" type="password" placeholder="Confirm your new password" required minlength="6">
+                    <button type="submit" class="btn btn-primary" id="changePasswordBtn" style="width: 100%;">Change Password</button>
+                </form>
+                <p class="auth-footer"><a href="#" class="auth-link" onclick="logout(); return false;">Sign out</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Page -->
+    <div id="registerPage" class="page" style="display: none;">
+        <div class="auth-container">
+            <div class="auth-card">
+                <h1 class="auth-title">CARE IT Assets</h1>
+                <p class="auth-subtitle">Create your account</p>
+
+                <div id="registerMessage" class="alert" style="display: none;"></div>
+
+                <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="registerName">Full Name</label>
+                        <input id="registerName" type="text" placeholder="Enter your full name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerEmail">Email Address</label>
+                        <input id="registerEmail" type="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input id="registerPassword" type="password" placeholder="Enter your password" required minlength="6">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="registerBtn" style="width: 100%;">
+                        Create Account
+                    </button>
+                </form>
+
+                <p class="auth-footer">
+                    Already have an account? 
+                    <a href="#" class="auth-link" onclick="switchPage('userLoginPage'); return false;">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="page" style="display: none;">
+        <!-- Header -->
+        <header class="header" id="header"></header>
+
+        <div class="container">
+            <div class="dashboard-header">
+                <div class="dashboard-title-group">
+                    <h1>Overview Dashboard</h1>
+                    <p>Welcome back! Here's a comprehensive view of your IT asset inventory.</p>
+                </div>
+                <div class="dashboard-date" id="dashboardDate">
+                    📅 <span></span>
+                </div>
+            </div>
+
+            <div id="dashboardMessage" class="alert" style="display: none;"></div>
+
+            <!-- Dashboard Search / Filters Row -->
+            <div class="filters">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="dashboardSearchInput"
+                        placeholder="🔍 Search assets by Tag, Brand, Model, Serial, Assigned To..."
+                        onkeyup="applyDashboardFilters()"
+                    >
+                </div>
+
+                <select id="dashboardStatusFilter" onchange="applyDashboardFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="Available">Available</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="In Storage">In Storage</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Lost">Lost</option>
+                    <option value="Aproved for disposal">Aproved for disposal</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+
+                <select id="dashboardCategoryFilter" onchange="applyDashboardFilters()">
+                    <option value="">All Categories</option>
+                    <option value="Laptops">Laptops</option>
+                    <option value="Mobile Phones">Mobile Phones</option>
+                    <option value="Monitors">Monitors</option>
+                    <option value="Projectors">Projectors</option>
+                    <option value="TV">TV</option>
+                    <option value="Printers">Printers</option>
+                    <option value="Copiers">Copiers</option>
+                    <option value="Network Devices">Network Devices</option>
+                    <option value="Tablets">Tablets</option>
+                </select>
+
+                <button type="button" class="btn btn-secondary btn-small" onclick="clearDashboardFilters()">✕ Clear Filters</button>
+            </div>
+
+            <!-- Filtered Dashboard Assets Preview -->
+            <div class="stats-table dashboard-filter-preview" id="dashboardFilterPreview" style="display: none;">
+                <div class="chart-card-header">
+                    <h2>Matching Assets (<span id="dashboardMatchCount">0</span>)</h2>
+                    <span class="availability-pill" id="avail-dashboard-match"></span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset Tag</th>
+                                <th>Category</th>
+                                <th>Brand / Model</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                                <th>Department</th>
+                                <th>Assigned To</th>
+                                <th>Returned By</th>
+                                <th>Condition</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardMatchesBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Summary Cards Row (6) -->
+            <div class="grid grid-6">
+                <div class="stat-card total">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-content">
+                        <h3>Total Assets</h3>
+                        <p class="stat-value" id="totalAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card available">
+                    <div class="stat-icon">✓</div>
+                    <div class="stat-content">
+                        <h3>Available</h3>
+                        <p class="stat-value" id="availableAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card assigned">
+                    <div class="stat-icon">👤</div>
+                    <div class="stat-content">
+                        <h3>Assigned</h3>
+                        <p class="stat-value" id="assignedAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card storage">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-content">
+                        <h3>In Storage</h3>
+                        <p class="stat-value" id="storageAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card repair">
+                    <div class="stat-icon">🔧</div>
+                    <div class="stat-content">
+                        <h3>Under Repair</h3>
+                        <p class="stat-value" id="repairAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card lost">
+                    <div class="stat-icon">❌</div>
+                    <div class="stat-content">
+                        <h3>Lost</h3>
+                        <p class="stat-value" id="lostAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card approved">
+                    <div class="stat-icon">🗒️</div>
+                    <div class="stat-content">
+                        <h3>Approved For Disposal</h3>
+                        <p class="stat-value" id="approvedAssets">0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card disposed">
+                    <div class="stat-icon">♻️</div>
+                    <div class="stat-content">
+                        <h3>Disposed</h3>
+                        <p class="stat-value" id="disposedAssets">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary Charts Row (3) -->
+            <div class="grid grid-3-charts">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>Assets by Category</h2>
+                        <span class="availability-pill" id="avail-category"></span>
+                    </div>
+                    <canvas id="categoryAllChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>Asset Status Distribution</h2>
+                        <span class="availability-pill" id="avail-status"></span>
+                    </div>
+                    <canvas id="statusChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>Assets by Department</h2>
+                        <span class="availability-pill" id="avail-department"></span>
+                    </div>
+                    <canvas id="departmentChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Category Health Charts Row (3) - Good / Faulty / Lost -->
+            <div class="grid grid-3-charts">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>✅ Good / New Assets by Category</h2>
+                        <span class="availability-pill" id="avail-categorygood"></span>
+                    </div>
+                    <canvas id="categoryGoodChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>⚠️ Faulty / Damaged by Category</h2>
+                        <span class="availability-pill" id="avail-categoryfaulty"></span>
+                    </div>
+                    <canvas id="categoryFaultyChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>❌ Lost Assets by Category</h2>
+                        <span class="availability-pill" id="avail-categorylost"></span>
+                    </div>
+                    <canvas id="categoryLostChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Secondary Row: Location + Tables -->
+            <div class="grid grid-3-charts">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h2>Assets by Location</h2>
+                        <span class="availability-pill" id="avail-location"></span>
+                    </div>
+                    <canvas id="locationChart"></canvas>
+                </div>
+
+                <div class="stats-table">
+                    <div class="chart-card-header">
+                        <h2>Status Breakdown</h2>
+                        <span class="availability-pill" id="avail-statustable"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Count</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statusTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="stats-table">
+                    <div class="chart-card-header">
+                        <h2>Category Health Summary</h2>
+                        <span class="availability-pill" id="avail-healthtable"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>✅ Good</th>
+                                <th>⚠️ Faulty</th>
+                                <th>❌ Lost</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categoryHealthTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Final Tables Row: Location, Department, Category Totals -->
+            <div class="grid grid-3-charts">
+                <div class="stats-table">
+                    <div class="chart-card-header">
+                        <h2>Locations</h2>
+                        <span class="availability-pill" id="avail-locationstable"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Count</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody id="locationTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="stats-table">
+                    <div class="chart-card-header">
+                        <h2>Departments</h2>
+                        <span class="availability-pill" id="avail-departmentstable"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Department</th>
+                                <th>Count</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody id="departmentTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="stats-table">
+                    <div class="chart-card-header">
+                        <h2>Assets by Category (Total)</h2>
+                        <span class="availability-pill" id="avail-categorytable"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Total</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categoryAllTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users / Administration Page -->
+    <div id="usersPage" class="page" style="display: none;">
+        <header class="header" id="headerUsers"></header>
+
+        <div class="container">
+            <section class="admin-landing" aria-labelledby="adminLandingTitle">
+                <div class="admin-landing-copy">
+                    <div>
+                        <span class="admin-kicker">CONTROL CENTRE</span>
+                        <h1 id="adminLandingTitle">Administration Panel</h1>
+                        <p>Manage access, returned equipment, and staff-issued IT items from one workspace.</p>
+                    </div>
+                    <div class="admin-landing-date"><span id="adminPanelDate"></span></div>
+                </div>
+                <div class="admin-quick-actions">
+                    <button class="btn btn-primary" onclick="focusAdminSection('createUserForm')">+ Add User</button>
+                    <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
+                    <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
+                </div>
+            </section>
+
+            <div class="admin-summary-grid">
+                <button class="admin-summary-card admin-summary-users" onclick="focusAdminSection('usersTableBody')">
+                    <span class="admin-summary-icon">&#9673;</span>
+                    <span><strong id="adminUserCount">0</strong><small>Registered Users</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-returns" onclick="focusAdminSection('returnedAssetForm')">
+                    <span class="admin-summary-icon">&#8634;</span>
+                    <span><strong>Returns</strong><small>Record unregistered assets</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-issues" onclick="focusAdminSection('issueItemForm')">
+                    <span class="admin-summary-icon">&#8599;</span>
+                    <span><strong>Issue Desk</strong><small>Borrow and staff equipment</small></span>
+                </button>
+                <button class="admin-summary-card admin-summary-access" onclick="focusAdminSection('createUserForm')">
+                    <span class="admin-summary-icon">&#10003;</span>
+                    <span><strong>Access Control</strong><small>Roles and passwords</small></span>
+                </button>
+            </div>
+
+            <div class="page-header">
+                <h1>User & Asset Operations</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openUserCreateModal()">Add User</button>
+                </div>
+            </div>
+
+            <div id="usersMessage" class="alert" style="display: none;"></div>
+
+            <div class="grid grid-2">
+                <div id="adminCreateUserSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
+                    <div class="admin-form-heading"><h2 style="margin-top: 0;">Create New User / Viewer</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminCreateUserSection')">Close</button></div>
+                    <form id="createUserForm" onsubmit="submitCreateUser(event)">
+                        <div class="form-group">
+                            <label for="newUserName">Full Name *</label>
+                            <input id="newUserName" type="text" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserEmail">Email *</label>
+                            <input id="newUserEmail" type="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserPassword">Password *</label>
+                            <input id="newUserPassword" type="password" minlength="6" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newUserRole">Role *</label>
+                            <select id="newUserRole" required>
+                                <option value="user">User</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Create User</button>
+                    </form>
+                </div>
+
+                <div id="adminReturnSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
+                    <div class="admin-form-heading"><h2 style="margin-top: 0;">Returned Asset Not in System</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminReturnSection')">Close</button></div>
+                    <form id="returnedAssetForm" onsubmit="submitReturnedAsset(event)">
+                        <div class="form-group">
+                            <label for="returnedDescription">Description *</label>
+                            <input id="returnedDescription" type="text" placeholder="e.g., Dell charger, HP monitor, projector" required>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedCategory">Category</label>
+                                <select id="returnedCategory">
+                                    <option value="Other">Other</option>
+                                    <option value="Laptops">Laptops</option>
+                                    <option value="Mobile Phones">Mobile Phones</option>
+                                    <option value="Monitors">Monitors</option>
+                                    <option value="Projectors">Projectors</option>
+                                    <option value="TV">TV</option>
+                                    <option value="Printers">Printers</option>
+                                    <option value="Copiers">Copiers</option>
+                                    <option value="Network Devices">Network Devices</option>
+                                    <option value="Tablets">Tablets</option>
+                                    <option value="Accessories">Accessories</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedCondition">Condition *</label>
+                                <select id="returnedCondition" required>
+                                    <option value="Good">Good</option>
+                                    <option value="New">New</option>
+                                    <option value="Faulty">Faulty</option>
+                                    <option value="BER">BER</option>
+                                    <option value="Damaged">Damaged</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedBrand">Brand</label>
+                                <input id="returnedBrand" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedModel">Model</label>
+                                <input id="returnedModel" type="text">
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedSerial">Serial Number</label>
+                                <input id="returnedSerial" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedBy">Returned By *</label>
+                                <input id="returnedBy" type="text" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label for="returnedDepartment">Department</label>
+                                <input id="returnedDepartment" type="text">
+                            </div>
+                            <div class="form-group">
+                                <label for="returnedLocation">Location</label>
+                                <input id="returnedLocation" type="text">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="returnedNotes">Notes</label>
+                            <textarea id="returnedNotes" rows="3" placeholder="Any details about the item or return reason"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Record Returned Item</button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="adminIssueSection" class="card admin-form-section" style="padding: 20px; margin-bottom: 20px; display: none;">
+                <div class="admin-form-heading"><h2 style="margin-top: 0;">Issue IT Equipment for Borrow / Staff Use</h2><button type="button" class="admin-form-close" onclick="hideAdminSection('adminIssueSection')">Close</button></div>
+                <form id="issueItemForm" onsubmit="submitIssueItem(event)">
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueItemName">Item Name *</label>
+                            <input id="issueItemName" type="text" placeholder="Laptop, charger, projector, etc." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueCategory">Category</label>
+                            <select id="issueCategory">
+                                <option value="Laptop">Laptop</option>
+                                <option value="Charger">Charger</option>
+                                <option value="Monitor">Monitor</option>
+                                <option value="Projector">Projector</option>
+                                <option value="Printer">Printer</option>
+                                <option value="Router">Router</option>
+                                <option value="Tablet">Tablet</option>
+                                <option value="Phone">Phone</option>
+                                <option value="Accessory">Accessory</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueAssignedTo">Assigned To *</label>
+                            <input id="issueAssignedTo" type="text" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueIssuedBy">Issued By</label>
+                            <input id="issueIssuedBy" type="text" placeholder="Name of staff issuing item">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueDepartment">Department</label>
+                            <input id="issueDepartment" type="text">
+                        </div>
+                        <div class="form-group">
+                            <label for="issueLocation">Location</label>
+                            <input id="issueLocation" type="text">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueCondition">Condition *</label>
+                            <select id="issueCondition" required>
+                                <option value="Good">Good</option>
+                                <option value="New">New</option>
+                                <option value="Faulty">Faulty</option>
+                                <option value="BER">BER</option>
+                                <option value="Damaged">Damaged</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueReturnDueDate">Return Due Date</label>
+                            <input id="issueReturnDueDate" type="date">
+                        </div>
+                    </div>
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="issueSerialNumber">Serial Number</label>
+                            <input id="issueSerialNumber" type="text">
+                        </div>
+                        <div class="form-group">
+                            <label for="issueDescription">Description</label>
+                            <input id="issueDescription" type="text">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="issueNotes">Notes</label>
+                        <textarea id="issueNotes" rows="3" placeholder="Extra details, borrow purpose, or asset conditions"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Issue IT Item</button>
+                </form>
+            </div>
+
+            <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2 style="margin: 0;">Users</h2>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assets Page -->
+    <div id="assetsPage" class="page" style="display: none;">
+        <!-- Header -->
+        <header class="header" id="headerAssets"></header>
+
+        <div class="container">
+            <div class="page-header">
+                <h1>IT Assets</h1>
+                <div class="header-actions" id="headerActions">
+                    <!-- Admin buttons will be injected here -->
+                </div>
+            </div>
+
+            <!-- Bulk Actions Bar -->
+            <div id="bulkActionsBar" class="bulk-actions-bar" style="display: none;">
+                <div class="bulk-actions-info">
+                    <strong><span id="selectedCount">0</span> asset(s) selected</strong>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary btn-small" onclick="clearSelection()">Clear Selection</button>
+                    <button class="btn btn-primary btn-small" onclick="bulkEditSelected()" id="bulkEditBtn">Edit Selected</button>
+                    <button class="btn btn-danger btn-small" onclick="bulkDeleteSelected()" id="bulkDeleteBtn">Delete Selected</button>
+                </div>
+            </div>
+
+            <div id="assetMessage" class="alert" style="display: none;"></div>
+
+            <!-- Filters -->
+            <div class="filters">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="🔍 Search by Tag, Brand, Model, Serial, Assigned To, Location, Department..." 
+                        onkeyup="filterAssets()"
+                    >
+                </div>
+
+                <select id="statusFilter" onchange="filterAssets()">
+                    <option value="">All Status</option>
+                    <option value="Available">Available</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="In Storage">In Storage</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Lost">Lost</option>
+                    <option value="Aproved for disposal">Aproved for disposal</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+
+                <select id="categoryFilter" onchange="filterAssets()">
+                    <option value="">All Categories</option>
+                    <option value="Laptops">Laptops</option>
+                    <option value="Mobile Phones">Mobile Phones</option>
+                    <option value="Monitors">Monitors</option>
+                    <option value="Projectors">Projectors</option>
+                    <option value="TV">TV</option>
+                    <option value="Printers">Printers</option>
+                    <option value="Copiers">Copiers</option>
+                    <option value="Network Devices">Network Devices</option>
+                    <option value="Tablets">Tablets</option>
+                </select>
+
+                <button type="button" class="btn btn-secondary btn-small" onclick="clearAssetFilters()">✕ Clear Filters</button>
+            </div>
+
+            <!-- Assets Table -->
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
+                            </th>
+                            <th>Asset Tag</th>
+                            <th>Category</th>
+                            <th>Serial Number</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                            <th>Returned By</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Condition</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assetsTableBody">
+                        <tr>
+                            <td colspan="11" class="text-center">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Asset Form Modal (Admin Only) -->
+    <div id="assetModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="assetModalTitle">Add New Asset</h2>
+                <button class="close-btn" onclick="closeAssetModal()">✕</button>
+            </div>
+
+            <form id="assetForm" onsubmit="submitAssetForm(event)">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label for="assetTag">Asset Tag *</label>
+                        <input id="assetTag" type="text" required placeholder="e.g., LAP001">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category">Category *</label>
+                        <select id="category" required>
+                            <option value="">Select Category</option>
+                            <option value="Laptops">Laptops</option>
+                            <option value="Mobile Phones">Mobile Phones</option>
+                            <option value="Monitors">Monitors</option>
+                            <option value="Projectors">Projectors</option>
+                            <option value="TV">TV</option>
+                            <option value="Printers">Printers</option>
+                            <option value="Copiers">Copiers</option>
+                            <option value="Network Devices">Network Devices</option>
+                            <option value="Tablets">Tablets</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="brand">Brand</label>
+                        <input id="brand" type="text" placeholder="e.g., Dell, HP">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model">Model</label>
+                        <input id="model" type="text" placeholder="e.g., Inspiron 15">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="serialNumber">Serial Number</label>
+                        <input id="serialNumber" type="text">
+                    </div>
+
+                    <div data-laptop-specs style="margin-top: 4px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: none;">
+                        <h4 style="margin: 0 0 12px; color: #1e293b; font-size: 15px; font-weight: 600;">Laptop Specifications</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div class="form-group">
+                                <label for="generation">Generation</label>
+                                <select id="generation">
+                                    <option value="">Select Generation</option>
+                                    <option value="8th Gen">8th Gen</option>
+                                    <option value="9th Gen">9th Gen</option>
+                                    <option value="10th Gen">10th Gen</option>
+                                    <option value="11th Gen">11th Gen</option>
+                                    <option value="12th Gen">12th Gen</option>
+                                    <option value="13th Gen">13th Gen</option>
+                                    <option value="14th Gen">14th Gen</option>
+                                    <option value="15th Gen">15th Gen</option>
+                                    <option value="Latest">Latest</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="processor">Processor</label>
+                                <select id="processor">
+                                    <option value="">Select Processor</option>
+                                    <option value="Intel Core i3">Intel Core i3</option>
+                                    <option value="Intel Core i5">Intel Core i5</option>
+                                    <option value="Intel Core i7">Intel Core i7</option>
+                                    <option value="Intel Core i9">Intel Core i9</option>
+                                    <option value="Intel Core Ultra 5">Intel Core Ultra 5</option>
+                                    <option value="Intel Core Ultra 7">Intel Core Ultra 7</option>
+                                    <option value="Intel Core Ultra 9">Intel Core Ultra 9</option>
+                                    <option value="AMD Ryzen 3">AMD Ryzen 3</option>
+                                    <option value="AMD Ryzen 5">AMD Ryzen 5</option>
+                                    <option value="AMD Ryzen 7">AMD Ryzen 7</option>
+                                    <option value="AMD Ryzen 9">AMD Ryzen 9</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ram">RAM</label>
+                                <select id="ram">
+                                    <option value="">Select RAM</option>
+                                    <option value="8GB">8GB</option>
+                                    <option value="16GB">16GB</option>
+                                    <option value="32GB">32GB</option>
+                                    <option value="64GB">64GB</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ssd">SSD</label>
+                                <select id="ssd">
+                                    <option value="">Select SSD</option>
+                                    <option value="128GB">128GB</option>
+                                    <option value="256GB">256GB</option>
+                                    <option value="512GB">512GB</option>
+                                    <option value="1TB">1TB</option>
+                                    <option value="2TB">2TB</option>
+                                    <option value="4TB">4TB</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchaseDate">Purchase Date</label>
+                        <input id="purchaseDate" type="date">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purchasePrice">Purchase Price</label>
+                        <input id="purchasePrice" type="number" placeholder="Amount">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="status">Status *</label>
+                        <select id="status" required>
+                            <option value="">Select Status</option>
+                            <option value="Available">Available</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="In Storage">In Storage</option>
+                            <option value="Under Repair">Under Repair</option>
+                            <option value="Lost">Lost</option>
+                            <option value="Aproved for disposal">Aproved for disposal</option>
+                            <option value="Disposed">Disposed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="condition">Condition *</label>
+                        <select id="condition" required>
+                            <option value="">Select Condition</option>
+                            <option value="New">New</option>
+                            <option value="Good">Good</option>
+                            <option value="Faulty">Faulty</option>
+                            <option value="BER">BER</option>
+                            <option value="Damaged">Damaged</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assignedTo">Assigned To</label>
+                        <input id="assignedTo" type="text" placeholder="Employee name">
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Assigned Device Bundle (Optional)</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Laptop" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Laptop</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Phone" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Phone</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Tablet" onchange="renderAssignmentItemDetails('multi-asset-select', 'assetAssignmentItemDetails')"> Tablet</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Monitor"> Monitor</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Charger"> Charger</label>
+                            <label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" class="multi-asset-select" value="Projector"> Projector</label>
+                        </div>
+                    </div>
+
+                    <div id="assetAssignmentItemDetails" style="grid-column: 1 / -1;"></div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label for="assignmentDetails">Staff Assets Description (Optional)</label>
+                        <textarea id="assignmentDetails" rows="3" placeholder="Example: Laptop, tablet and phone assigned to Jane Doe for field monitoring work"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="department">Department</label>
+                        <select id="department">
+                            <option value="">Select Department</option>
+                            <option value="Operations">Operations</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Administration & Logistics">Administration & Logistics</option>
+                            <option value="Procurement">Procurement</option>
+                            <option value="IT">IT</option>
+                            <option value="Communications">Communications</option>
+                            <option value="Programs">Programs</option>
+                            <option value="CASCADE">CASCADE</option>
+                            <option value="Women Voices and Leadership (WVL)">Women Voices and Leadership (WVL)</option>
+                            <option value="KRAPID+">KRAPID+</option>
+                            <option value="MOFA">MOFA</option>
+                            <option value="C2C">C2C</option>
+                            <option value="Sowing Change">Sowing Change</option>
+                            <option value="SHE SOARS">SHE SOARS</option>
+                            <option value="CSDW">CSDW</option>
+                            <option value="EXECUTIVE">EXECUTIVE</option>
+                            <option value="Security">Security</option>
+                            <option value="PQLA / MEAL– Program Quality Learning & Accountability">PQLA / MEAL– Program Quality Learning & Accountability</option>
+                            <option value="Programs & Fund raising">Programs & Fund raising</option>
+                            <option value="Risk and Compliance">Risk and Compliance</option>
+                            <option value="ESA">ESA</option>
+                            <option value="Human Resource">Human Resource</option>
+                            <option value="Private sector Engagement">Private sector Engagement</option>
+                            <option value="Project Driver">Project Driver</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="location">Location *</label>
+                        <select id="location" required>
+                            <option value="">Select Location</option>
+                            <option value="Regional Office">Regional Office</option>
+                            <option value="Nairobi">Nairobi</option>
+                            <option value="Nairobi Admin Stores">Nairobi Admin Stores</option>
+                            <option value="Nairobi IT Stores">Nairobi IT Stores</option>
+                            <option value="Nairobi Regional Stores">Nairobi Regional Stores</option>
+                            <option value="RMU Stores">RMU Stores</option>
+                            <option value="Kisumu">Kisumu</option>
+                            <option value="Migori">Migori</option>
+                            <option value="Busia">Busia</option>
+                            <option value="Nakuru">Nakuru</option>
+                            <option value="Kajiado">Kajiado</option>
+                            <option value="Garissa">Garissa</option>
+                            <option value="Dadaab">Dadaab</option>
+                            <option value="Dadaab-DMO">Dadaab-DMO</option>
+                            <option value="IFO">IFO</option>
+                            <option value="Hagadera">Hagadera</option>
+                            <option value="Dagahaley">Dagahaley</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        Save Asset
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAssetModal()" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Asset Details Modal -->
+    <div id="detailsModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Asset Details</h2>
+                <button class="close-btn" onclick="closeDetailsModal()">✕</button>
+            </div>
+
+            <div id="assetDetailsContent"></div>
+        </div>
+    </div>
+
+    <!-- Import Excel Modal (Admin Only) -->
+    <div id="importModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Import Assets from Excel</h2>
+                <button class="close-btn" onclick="closeImportModal()">✕</button>
+            </div>
+
+            <form id="importForm" onsubmit="submitImportForm(event)">
+                <div class="form-group">
+                    <label for="excelFile">Select Excel File *</label>
+                    <input id="excelFile" type="file" accept=".xlsx,.xls" required>
+                    <p class="form-hint">Format: Asset Tag, Category, Brand, Model, Serial Number, Purchase Date, Purchase Price, Status, Department, Location, Condition</p>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        Import Assets
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeImportModal()" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js?v=20260827d"></script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 const express = require("express");
+const compression = require("compression");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -135,6 +136,7 @@ app.use(cors({
 }));
 
 // Body Parser
+app.use(compression());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -181,17 +183,39 @@ const imageUpload = multer({
 /* =========================
    DATABASE
 ========================= */
-mongoose
-  .connect(process.env.MONGODB_URL || "mongodb://127.0.0.1:27017/care_it_asset_management-app", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-  })
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => {
-    console.log("❌ DB Error:", err.message);
-    process.exit(1);
-  });
+const mongoOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 30),
+  minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE || 5),
+  serverSelectionTimeoutMS: Number(
+    process.env.MONGO_SERVER_SELECTION_TIMEOUT || 5000
+  ),
+  connectTimeoutMS: 5000,
+  socketTimeoutMS: Number(
+    process.env.MONGO_SOCKET_TIMEOUT || 45000
+  ),
+};
+
+async function connectDatabase() {
+  const mongoUrl = process.env.MONGO_URI || process.env.MONGODB_URL || "mongodb://127.0.0.1:27017/care_it_asset_management-app";
+
+  while (mongoose.connection.readyState !== 1) {
+    try {
+      await mongoose.connect(mongoUrl, mongoOptions);
+      await migrateAssetTagIndex();
+      await migratePurchaseItemFields();
+      console.log("✅ MongoDB Connected");
+    } catch (err) {
+      if (mongoose.connection.readyState === 1) await mongoose.disconnect();
+      console.error("❌ DB Error:", err.message);
+      console.log("⏳ MongoDB unavailable; retrying in 3 seconds...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+}
+
+connectDatabase();
 
 /* =========================
    USER MODEL
@@ -201,7 +225,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, lowercase: true, trim: true, required: true },
   password: { type: String, required: true },
   mustChangePassword: { type: Boolean, default: false },
-  role: { type: String, enum: ["user", "viewer", "admin", "superadmin"], default: "user" },
+  role: { type: String, enum: ["user", "viewer", "admin", "superadmin"], default: "viewer" },
 }, { timestamps: true });
 
 userSchema.index({ email: 1 }, { unique: true });
@@ -210,6 +234,22 @@ const User = mongoose.model("User", userSchema);
 function generateTemporaryPassword() {
   return crypto.randomBytes(12).toString("base64url");
 }
+
+const activityLogSchema = new mongoose.Schema({
+  actorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  actorEmail: { type: String, required: true },
+  actorRole: { type: String, required: true },
+  action: { type: String, required: true },
+  entityType: { type: String, required: true },
+  entityId: String,
+  entityLabel: String,
+  category: String,
+  details: String,
+}, { timestamps: true });
+
+activityLogSchema.index({ createdAt: -1 });
+activityLogSchema.index({ actorId: 1, createdAt: -1 });
+const ActivityLog = mongoose.model("ActivityLog", activityLogSchema);
 
 /* =========================
    PASSWORD RESET MODEL
@@ -252,12 +292,46 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+const canAddAssets = (req, res, next) => {
+  if (!req.user || !["user", "admin", "superadmin"].includes(req.user.role)) {
+    return res.status(403).json({ message: "Viewer access is read-only" });
+  }
+  next();
+};
+
+const recordActivity = async (req, event) => {
+  try {
+    await ActivityLog.create({
+      actorId: req.user?.id,
+      actorEmail: req.user?.email || "unknown",
+      actorRole: req.user?.role || "unknown",
+      ...event,
+    });
+  } catch (err) {
+    console.error("Activity log write failed:", err.message);
+  }
+};
+
 const superAdminOnly = (req, res, next) => {
   if (!req.user || req.user.role !== "superadmin") {
     return res.status(403).json({ message: "Super admin access required" });
   }
   next();
 };
+
+app.get("/api/activity-logs", auth, adminOnly, async (req, res) => {
+  try {
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
+    const logs = await ActivityLog.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 /* =========================
    AUTH ROUTES
@@ -284,7 +358,7 @@ app.post("/api/auth/register", auth, superAdminOnly, async (req, res) => {
       name, 
       email: email.toLowerCase(), 
       password: hashedPassword,
-      role: "user",
+      role: "viewer",
       mustChangePassword: true
     });
     
@@ -306,13 +380,17 @@ app.post("/api/auth/register", auth, superAdminOnly, async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const loginStartedAt = process.hrtime.bigint();
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: "Database is waking up. Please try again in a moment." });
+    }
+
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
     const lookupStartedAt = process.hrtime.bigint();
     const user = await User.findOne({ email: normalizedEmail }).select("name email password role mustChangePassword").lean();
     console.info("[CareIT Perf] login:user-lookup", JSON.stringify({
@@ -335,7 +413,7 @@ app.post("/api/auth/login", async (req, res) => {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "secret123",
-      { expiresIn: process.env.JWT_EXPIRE || "7d" }
+      { expiresIn: process.env.JWT_EXPIRE || "30d" }
     );
     console.info("[CareIT Perf] login:token-created", JSON.stringify({
       durationMs: Math.round(Number(process.hrtime.bigint() - tokenStartedAt) / 1e6),
@@ -426,7 +504,7 @@ app.post("/api/users", auth, superAdminOnly, async (req, res) => {
     }
 
     const allowedRoles = ["user", "viewer", "admin", "superadmin"];
-    const selectedRole = allowedRoles.includes(role) ? role : "user";
+    const selectedRole = allowedRoles.includes(role) ? role : "viewer";
 
     if (selectedRole === "superadmin" && req.user.role !== "superadmin") {
       return res.status(403).json({ message: "Only the super admin can create another super admin" });
@@ -448,6 +526,13 @@ app.post("/api/users", auth, superAdminOnly, async (req, res) => {
     });
 
     await user.save();
+    await recordActivity(req, {
+      action: "Created user",
+      entityType: "User",
+      entityId: user._id.toString(),
+      entityLabel: user.email,
+      details: `Role: ${user.role}`,
+    });
     res.set("Cache-Control", "no-store").status(201).json({
       message: "User created successfully",
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -480,6 +565,13 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
 
     targetUser.role = selectedRole;
     await targetUser.save();
+    await recordActivity(req, {
+      action: "Changed user role",
+      entityType: "User",
+      entityId: targetUser._id.toString(),
+      entityLabel: targetUser.email,
+      details: `Role: ${selectedRole}`,
+    });
 
     res.json({
       message: "User role updated successfully",
@@ -505,6 +597,12 @@ app.post("/api/users/:id/reset-password", auth, adminOnly, async (req, res) => {
     targetUser.password = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS || 10));
     targetUser.mustChangePassword = true;
     await targetUser.save();
+    await recordActivity(req, {
+      action: "Reset user password",
+      entityType: "User",
+      entityId: targetUser._id.toString(),
+      entityLabel: targetUser.email,
+    });
 
     res.json({
       message: "Temporary password generated successfully",
@@ -527,7 +625,15 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
       return res.status(403).json({ message: "Only the super admin can delete a super admin" });
     }
 
+    const deletedUser = { id: targetUser._id.toString(), email: targetUser.email, role: targetUser.role };
     await targetUser.deleteOne();
+    await recordActivity(req, {
+      action: "Deleted user",
+      entityType: "User",
+      entityId: deletedUser.id,
+      entityLabel: deletedUser.email,
+      details: `Role: ${deletedUser.role}`,
+    });
     res.json({ message: "User deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -706,11 +812,21 @@ app.post("/api/auth/change-password", auth, async (req, res) => {
 /* =========================
    ASSET MODEL
 ========================= */
+const ASSET_CATEGORIES = [
+  "Laptops", "Mobile Phones", "Monitors", "Projectors", "TV",
+  "Printers", "Copiers", "Network Devices", "Tablets",
+  "Laptop Charger", "Toner", "Docking Station", "Keyboard Combo/Mouse",
+  "Accessories", "Other"
+];
+
+const isNoAssetTag = value => /(?:^|[^A-Z0-9])NO TAG$/.test(String(value || "").trim().toUpperCase());
+
 const assetSchema = new mongoose.Schema({
-  assetTag: { type: String, required: true, unique: true, uppercase: true },
+  assetTag: { type: String, required: true, uppercase: true, trim: true },
+  assetTagKey: { type: String, select: false },
   category: {
     type: String,
-    enum: ["Laptops", "Mobile Phones", "Monitors","Projectors","TV","Printers", "Copiers", "Network Devices", "Tablets"],
+    enum: ASSET_CATEGORIES,
     required: true,
   },
   brand: String,
@@ -833,9 +949,27 @@ const assetSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+assetSchema.pre("validate", function () {
+  this.assetTag = (this.assetTag || "").trim().toUpperCase();
+  this.assetTagKey = this.assetTag && !isNoAssetTag(this.assetTag) ? this.assetTag : undefined;
+});
+
 assetSchema.index({ createdAt: -1 });
 assetSchema.index({ status: 1, category: 1 });
+assetSchema.index({ assetTagKey: 1 }, { unique: true, sparse: true });
 const Asset = mongoose.model("Asset", assetSchema);
+
+async function migrateAssetTagIndex() {
+  const indexes = await Asset.collection.indexes();
+  const oldUniqueTagIndex = indexes.find(index => index.key.assetTag === 1 && index.unique);
+  if (oldUniqueTagIndex) await Asset.collection.dropIndex(oldUniqueTagIndex.name);
+
+  await Asset.collection.updateMany({}, [
+    { $set: { assetTag: { $toUpper: { $trim: { input: { $ifNull: ["$assetTag", ""] } } } } } },
+    { $set: { assetTagKey: { $cond: [{ $regexMatch: { input: "$assetTag", regex: "(?:^|[^A-Z0-9])NO TAG$" } }, "$$REMOVE", "$assetTag"] } } }
+  ]);
+  await Asset.collection.createIndex({ assetTagKey: 1 }, { unique: true, sparse: true });
+}
 
 const returnedAssetSchema = new mongoose.Schema({
   description: { type: String, required: true },
@@ -874,13 +1008,74 @@ const borrowedItemSchema = new mongoose.Schema({
 const BorrowedItem = mongoose.model("BorrowedItem", borrowedItemSchema);
 
 /* =========================
+   PURCHASE ITEM MODEL
+========================= */
+const PURCHASE_CATEGORIES = [
+  "Laptops", "Mobile Phones", "Tablets", "Printers",
+  "Copiers", "Toners", "Network Devices", "Docking Station",
+  "Keyboard Combo/Mouse", "Laptop Charger"
+];
+
+const purchaseItemSchema = new mongoose.Schema({
+  category: {
+    type: String,
+    enum: PURCHASE_CATEGORIES,
+    required: true,
+  },
+  brand: String,
+  model: String,
+  serialNumber: String,
+  purchaseDate: { type: Date, required: true },
+  purchasePrice: Number,
+  purchasedFor: String,
+  vendor: String,
+  receivedBy: String,
+}, { timestamps: true });
+
+purchaseItemSchema.index({ createdAt: -1 });
+purchaseItemSchema.index({ category: 1, purchaseDate: -1 });
+const PurchaseItem = mongoose.model("PurchaseItem", purchaseItemSchema);
+
+async function migratePurchaseItemFields() {
+  await PurchaseItem.createCollection().catch(error => {
+    if (error.codeName !== "NamespaceExists" && error.code !== 48) throw error;
+  });
+  const indexes = await PurchaseItem.collection.indexes();
+  const itemTagIndex = indexes.find(index => index.key.itemTag === 1 && index.unique);
+  if (itemTagIndex) await PurchaseItem.collection.dropIndex(itemTagIndex.name);
+
+  const oldCategoryStatusIndex = indexes.find(index => index.key.category === 1 && index.key.status === 1);
+  if (oldCategoryStatusIndex) await PurchaseItem.collection.dropIndex(oldCategoryStatusIndex.name);
+
+  await PurchaseItem.collection.updateMany({}, [
+    { $set: {
+      vendor: { $ifNull: ["$vendor", "$supplier"] },
+      purchasedFor: { $ifNull: ["$purchasedFor", "$assignedTo"] }
+    } },
+    { $unset: ["itemTag", "supplier", "invoiceNumber", "quantity", "status", "location", "condition", "assignedTo", "notes"] }
+  ]);
+  await PurchaseItem.collection.createIndex({ category: 1, purchaseDate: -1 });
+}
+
+/* =========================
    ASSET ROUTES
 ========================= */
 
-// CREATE (Admin only)
-app.post("/api/assets", auth, adminOnly, async (req, res) => {
+// CREATE (User and admin)
+app.post("/api/assets", auth, canAddAssets, async (req, res) => {
   try {
-    const asset = await Asset.create(req.body);
+    const assetData = { ...req.body };
+    assetData.assetTag = (assetData.assetTag || "").trim().toUpperCase();
+    assetData.assetTagKey = !isNoAssetTag(assetData.assetTag) ? assetData.assetTag : undefined;
+    const asset = await Asset.create(assetData);
+    await recordActivity(req, {
+      action: "Added asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+      details: [asset.brand, asset.model].filter(Boolean).join(" "),
+    });
     res.status(201).json({ message: "Asset created", asset });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -946,8 +1141,26 @@ app.get("/api/assets/search/:query", auth, async (req, res) => {
 // UPDATE (Admin only)
 app.put("/api/assets/:id", auth, adminOnly, async (req, res) => {
   try {
-    const asset = await Asset.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const assetData = { ...req.body };
+    let updateData = assetData;
+    if (typeof assetData.assetTag === "string") {
+      assetData.assetTag = assetData.assetTag.trim().toUpperCase();
+      if (isNoAssetTag(assetData.assetTag)) {
+        delete assetData.assetTagKey;
+        updateData = { $set: assetData, $unset: { assetTagKey: 1 } };
+      } else {
+        assetData.assetTagKey = assetData.assetTag;
+      }
+    }
+    const asset = await Asset.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!asset) return res.status(404).json({ message: "Asset not found" });
+    await recordActivity(req, {
+      action: "Updated asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+    });
     res.json({ message: "Asset updated", asset });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -959,6 +1172,13 @@ app.delete("/api/assets/:id", auth, adminOnly, async (req, res) => {
   try {
     const asset = await Asset.findByIdAndDelete(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
+    await recordActivity(req, {
+      action: "Deleted asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+    });
     res.json({ message: "Asset deleted", asset });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -1182,7 +1402,12 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
     // Insert assets into database
     if (assets.length > 0) {
       try {
-        const result = await Asset.insertMany(assets, { ordered: false });
+        const normalizedAssets = assets.map(asset => {
+          asset.assetTag = (asset.assetTag || "").trim().toUpperCase();
+          asset.assetTagKey = !isNoAssetTag(asset.assetTag) ? asset.assetTag : undefined;
+          return asset;
+        });
+        const result = await Asset.insertMany(normalizedAssets, { ordered: false });
         importedCount = result.length;
         console.log(`Successfully inserted ${importedCount} assets`);
       } catch (err) {
@@ -1198,6 +1423,16 @@ app.post("/api/import/excel", auth, adminOnly, upload.single("file"), async (req
           throw err;
         }
       }
+    }
+
+    if (importedCount > 0) {
+      await recordActivity(req, {
+        action: "Imported assets",
+        entityType: "Asset",
+        entityLabel: `${importedCount} assets`,
+        category: [...new Set(assets.map(asset => asset.category).filter(Boolean))].join(", "),
+        details: "Excel import",
+      });
     }
 
     res.json({
@@ -1321,7 +1556,12 @@ app.post("/api/import/image", auth, adminOnly, imageUpload.single("file"), async
     let importedCount = 0;
     if (assets.length) {
       try {
-        const result = await Asset.insertMany(assets, { ordered: false });
+        const normalizedAssets = assets.map(asset => {
+          asset.assetTag = (asset.assetTag || "").trim().toUpperCase();
+          asset.assetTagKey = !isNoAssetTag(asset.assetTag) ? asset.assetTag : undefined;
+          return asset;
+        });
+        const result = await Asset.insertMany(normalizedAssets, { ordered: false });
         importedCount = result.length;
       } catch (err) {
         if (err.code === 11000) {
@@ -1331,6 +1571,16 @@ app.post("/api/import/image", auth, adminOnly, imageUpload.single("file"), async
           throw err;
         }
       }
+    }
+
+    if (importedCount > 0) {
+      await recordActivity(req, {
+        action: "Imported assets",
+        entityType: "Asset",
+        entityLabel: `${importedCount} assets`,
+        category: [...new Set(assets.map(asset => asset.category).filter(Boolean))].join(", "),
+        details: "Image import",
+      });
     }
 
     res.json({
@@ -1352,7 +1602,7 @@ app.post("/api/import/image", auth, adminOnly, imageUpload.single("file"), async
 /* =========================
    ASSIGN ASSET
 ========================= */
-app.put("/api/assets/:id/assign", auth, async (req, res) => {
+app.put("/api/assets/:id/assign", auth, adminOnly, async (req, res) => {
   try {
     const asset = await Asset.findById(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
@@ -1383,6 +1633,14 @@ app.put("/api/assets/:id/assign", auth, async (req, res) => {
     });
 
     await asset.save();
+    await recordActivity(req, {
+      action: "Assigned asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+      details: `Assigned to ${asset.assignedTo || "staff"}`,
+    });
     res.json({ message: "Asset assigned", asset });
 
   } catch (err) {
@@ -1426,6 +1684,14 @@ app.post("/api/assets/bulk-assign", auth, adminOnly, async (req, res) => {
       });
 
       await asset.save();
+      await recordActivity(req, {
+        action: "Assigned asset",
+        entityType: "Asset",
+        entityId: asset._id.toString(),
+        entityLabel: asset.assetTag,
+        category: asset.category,
+        details: `Assigned to ${asset.assignedTo || "staff"}`,
+      });
       updatedAssets.push(asset);
     }
 
@@ -1438,28 +1704,42 @@ app.post("/api/assets/bulk-assign", auth, adminOnly, async (req, res) => {
 /* =========================
    RETURN ASSET
 ========================= */
-app.put("/api/assets/:id/return", auth, async (req, res) => {
+app.put("/api/assets/:id/return", auth, adminOnly, async (req, res) => {
   try {
+    const returnedBy = typeof req.body?.returnedBy === "string" ? req.body.returnedBy.trim() : "";
+    if (!returnedBy) {
+      return res.status(400).json({ message: "Returned by is required" });
+    }
+
     const asset = await Asset.findById(req.params.id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
 
+    const returnDate = new Date();
     asset.status = "Available";
     asset.assignedTo = null;
 
     asset.returnInfo = {
-      returnedBy: req.body.returnedBy,
-      returnDate: new Date(),
+      returnedBy,
+      returnDate,
       condition: req.body.condition || asset.condition,
     };
 
     asset.history.push({
       action: "Returned",
-      assignedTo: req.body.returnedBy,
-      notes: req.body.notes || `Asset returned by ${req.body.returnedBy || "unknown"}`,
-      date: new Date(),
+      assignedTo: returnedBy,
+      notes: req.body.notes || `Asset returned by ${returnedBy}`,
+      date: returnDate,
     });
 
     await asset.save();
+    await recordActivity(req, {
+      action: "Returned asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+      details: `Returned by ${returnedBy}`,
+    });
     res.json({ message: "Asset returned", asset });
 
   } catch (err) {
@@ -1469,8 +1749,39 @@ app.put("/api/assets/:id/return", auth, async (req, res) => {
 
 // UNREGISTERED RETURNED ASSET RECORD
 app.post("/api/returned-assets", auth, adminOnly, async (req, res) => {
+  let createdAssetId;
   try {
     const payload = req.body || {};
+    if (!payload.assetTag || !payload.description || !payload.returnedBy) {
+      return res.status(400).json({ message: "Asset tag, description, and returned by are required" });
+    }
+
+    const returnDate = payload.returnDate ? new Date(payload.returnDate) : new Date();
+    const asset = await Asset.create({
+      assetTag: payload.assetTag,
+      category: payload.category || "Other",
+      brand: payload.brand || "",
+      model: payload.model || "",
+      serialNumber: payload.serialNumber || "",
+      status: "Available",
+      department: payload.department || "",
+      location: payload.location || "",
+      condition: payload.condition || "Good",
+      returnInfo: {
+        returnedBy: payload.returnedBy,
+        returnDate,
+        condition: payload.condition || "Good",
+      },
+      history: [{
+        action: "Returned to inventory",
+        assignedTo: payload.returnedBy,
+        department: payload.department || "",
+        date: returnDate,
+        notes: payload.notes || "Returned item added to the asset register",
+      }],
+    });
+    createdAssetId = asset._id;
+
     const entry = await ReturnedAsset.create({
       description: payload.description || payload.itemName || "Returned item",
       category: payload.category || "Other",
@@ -1483,13 +1794,24 @@ app.post("/api/returned-assets", auth, adminOnly, async (req, res) => {
       location: payload.location || "",
       condition: payload.condition || "Good",
       notes: payload.notes || "",
-      returnDate: payload.returnDate ? new Date(payload.returnDate) : new Date(),
+      returnDate,
       status: payload.status || "Received",
     });
 
-    res.status(201).json({ message: "Returned asset recorded", entry });
+    await recordActivity(req, {
+      action: "Added returned asset",
+      entityType: "Asset",
+      entityId: asset._id.toString(),
+      entityLabel: asset.assetTag,
+      category: asset.category,
+      details: `Returned by ${payload.returnedBy}`,
+    });
+
+    res.status(201).json({ message: "Returned asset recorded and added to assets", asset, entry });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    if (createdAssetId) await Asset.deleteOne({ _id: createdAssetId }).catch(() => {});
+    const status = err.name === "ValidationError" ? 400 : err.code === 11000 ? 409 : 500;
+    res.status(status).json({ message: err.message });
   }
 });
 
@@ -1520,6 +1842,15 @@ app.post("/api/it-issues", auth, adminOnly, async (req, res) => {
       returnDueDate: payload.returnDueDate ? new Date(payload.returnDueDate) : null,
       notes: payload.notes || "",
       status: payload.status || "Issued",
+    });
+
+    await recordActivity(req, {
+      action: "Issued equipment",
+      entityType: "Issued Equipment",
+      entityId: issue._id.toString(),
+      entityLabel: issue.itemName,
+      category: issue.category,
+      details: `Issued to ${issue.assignedTo}`,
     });
 
     res.status(201).json({ message: "IT item issued", issue });
@@ -1781,9 +2112,33 @@ function getAssetExportRow(asset) {
   };
 }
 
+function buildAssetFilterFromQuery(req) {
+  const filter = {};
+  const { location, status, category, condition, department } = req.query;
+  if (location) filter.location = location;
+  if (status) filter.status = status;
+  if (category) filter.category = category;
+  if (condition) filter.condition = condition;
+  if (department) filter.department = department;
+  return filter;
+}
+
+function buildExportFilename(base, req, ext) {
+  const { location, status, category, condition, department } = req.query;
+  const parts = [base];
+  if (category) parts.push(`-${category.replace(/[^a-zA-Z0-9]/g, '')}`);
+  if (department) parts.push(`-${department.replace(/[^a-zA-Z0-9]/g, '')}`);
+  if (location) parts.push(`-${location.replace(/[^a-zA-Z0-9]/g, '')}`);
+  if (status) parts.push(`-${status.replace(/[^a-zA-Z0-9]/g, '')}`);
+  if (condition) parts.push(`-${condition.replace(/[^a-zA-Z0-9]/g, '')}`);
+  parts.push(`-${new Date().toISOString().slice(0, 10)}`);
+  return `${parts.join('')}.${ext}`;
+}
+
 app.get("/api/export/excel", auth, async (req, res) => {
   try {
-    const assets = await Asset.find();
+    const filter = buildAssetFilterFromQuery(req);
+    const assets = await Asset.find(filter);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Assets Report");
@@ -1842,7 +2197,7 @@ app.get("/api/export/excel", auth, async (req, res) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    res.setHeader("Content-Disposition", "attachment; filename=assets.xlsx");
+    res.setHeader("Content-Disposition", `attachment; filename=${buildExportFilename('assets', req, 'xlsx')}`);
 
     await workbook.xlsx.write(res);
     res.end();
@@ -1856,7 +2211,8 @@ app.get("/api/export/excel", auth, async (req, res) => {
 ========================= */
 app.get("/api/export/pdf", auth, async (req, res) => {
   try {
-    const assets = await Asset.find();
+    const filter = buildAssetFilterFromQuery(req);
+    const assets = await Asset.find(filter);
 
     const doc = new PDFDocument({
       layout: "landscape",
@@ -1866,7 +2222,7 @@ app.get("/api/export/pdf", auth, async (req, res) => {
     });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "attachment; filename=assets.pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=${buildExportFilename('assets', req, 'pdf')}`);
 
     doc.pipe(res);
 
@@ -1906,6 +2262,12 @@ app.get("/api/export/pdf", auth, async (req, res) => {
 
     doc.font("Times-Bold").fontSize(16).fillColor("#1F2937").text("CARE IT ASSET REPORT", { align: "center" });
     doc.font("Times-Roman").fontSize(9).fillColor("#4B5563").text(`Generated: ${new Date().toLocaleDateString()}`, { align: "center" });
+    const filterParts = [];
+    if (req.query.category) filterParts.push(`Category: ${req.query.category}`);
+    if (req.query.location) filterParts.push(`Location: ${req.query.location}`);
+    if (req.query.status) filterParts.push(`Status: ${req.query.status}`);
+    if (req.query.condition) filterParts.push(`Condition: ${req.query.condition}`);
+    if (filterParts.length) doc.font("Times-Roman").fontSize(9).fillColor("#2F5496").text(filterParts.join("  |  "), { align: "center" });
     doc.moveDown(0.8);
     drawTableHeader();
 
@@ -1946,10 +2308,381 @@ app.get("/api/export/pdf", auth, async (req, res) => {
 });
 
 /* =========================
+   PURCHASE ITEM ROUTES
+========================= */
+const PURCHASE_EXPORT_COLUMNS = [
+  { header: "Category", key: "category", width: 22 },
+  { header: "Serial Number", key: "serialNumber", width: 25 },
+  { header: "Brand", key: "brand", width: 15 },
+  { header: "Model", key: "model", width: 20 },
+  { header: "Purchase Date", key: "purchaseDate", width: 15 },
+  { header: "Purchase Price", key: "purchasePrice", width: 15 },
+  { header: "Purchased For", key: "purchasedFor", width: 28 },
+  { header: "Vendor", key: "vendor", width: 20 },
+  { header: "Received By", key: "receivedBy", width: 28 },
+];
+
+function getPurchaseExportRow(item) {
+  return {
+    category: item.category,
+    serialNumber: item.serialNumber || "",
+    brand: item.brand || "",
+    model: item.model || "",
+    purchaseDate: item.purchaseDate,
+    purchasePrice: item.purchasePrice,
+    purchasedFor: item.purchasedFor || "",
+    vendor: item.vendor || "",
+    receivedBy: item.receivedBy || "",
+  };
+}
+
+app.get("/api/purchase-items", auth, async (req, res) => {
+  try {
+    const filter = {};
+    const { category } = req.query;
+    if (category) filter.category = category;
+    const items = await PurchaseItem.find(filter).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/purchase-items/categories", auth, (req, res) => {
+  res.json({ categories: PURCHASE_CATEGORIES });
+});
+
+app.get("/api/purchase-items/:id", auth, async (req, res) => {
+  try {
+    const item = await PurchaseItem.findById(req.params.id);
+    if (!item) return res.status(404).json({ message: "Purchase item not found" });
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/purchase-items", auth, canAddAssets, async (req, res) => {
+  try {
+    const item = await PurchaseItem.create(req.body);
+    await recordActivity(req, {
+      action: "Added purchase item",
+      entityType: "Purchase Item",
+      entityId: item._id.toString(),
+      entityLabel: [item.brand, item.model].filter(Boolean).join(" ") || item.serialNumber || "Purchase item",
+      category: item.category,
+      details: `Purchased for ${item.purchasedFor || "unspecified"}`,
+    });
+    res.status(201).json({ message: "Purchase item created", item });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.put("/api/purchase-items/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const item = await PurchaseItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!item) return res.status(404).json({ message: "Purchase item not found" });
+    await recordActivity(req, {
+      action: "Updated purchase item",
+      entityType: "Purchase Item",
+      entityId: item._id.toString(),
+      entityLabel: [item.brand, item.model].filter(Boolean).join(" ") || item.serialNumber || "Purchase item",
+      category: item.category,
+    });
+    res.json({ message: "Purchase item updated", item });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.delete("/api/purchase-items/:id", auth, adminOnly, async (req, res) => {
+  try {
+    const item = await PurchaseItem.findByIdAndDelete(req.params.id);
+    if (!item) return res.status(404).json({ message: "Purchase item not found" });
+    await recordActivity(req, {
+      action: "Deleted purchase item",
+      entityType: "Purchase Item",
+      entityId: item._id.toString(),
+      entityLabel: [item.brand, item.model].filter(Boolean).join(" ") || item.serialNumber || "Purchase item",
+      category: item.category,
+    });
+    res.json({ message: "Purchase item deleted", item });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/purchase-export/excel", auth, async (req, res) => {
+  try {
+    const filter = {};
+    const { category } = req.query;
+    if (category) filter.category = category;
+    const items = await PurchaseItem.find(filter);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Purchase Items");
+    sheet.columns = PURCHASE_EXPORT_COLUMNS;
+    items.forEach((item) => sheet.addRow(getPurchaseExportRow(item)));
+
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, name: "Times New Roman" };
+    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F5496" } };
+    headerRow.height = 28;
+    headerRow.alignment = { vertical: "middle" };
+
+    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      row.font = { name: "Times New Roman" };
+      if (rowNumber > 1) {
+        row.alignment = { vertical: "middle" };
+        if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6E4F0" } };
+        else row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB8CCE4" } };
+      }
+    });
+
+    sheet.eachRow((row) => {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF95B3D7" } },
+          left: { style: "thin", color: { argb: "FF95B3D7" } },
+          bottom: { style: "thin", color: { argb: "FF95B3D7" } },
+          right: { style: "thin", color: { argb: "FF95B3D7" } },
+        };
+      });
+    });
+
+    sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } };
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename=${buildExportFilename('purchase-items', req, 'xlsx')}`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get("/api/purchase-export/pdf", auth, async (req, res) => {
+  try {
+    const filter = {};
+    const { category } = req.query;
+    if (category) filter.category = category;
+    const items = await PurchaseItem.find(filter);
+
+    const doc = new PDFDocument({
+      layout: "landscape",
+      size: "LEGAL",
+      margins: { top: 28, bottom: 28, left: 24, right: 24 },
+      bufferPages: true,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=${buildExportFilename('purchase-items', req, 'pdf')}`);
+    doc.pipe(res);
+
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const pageBottom = doc.page.height - doc.page.margins.bottom;
+    const totalColumnWidth = PURCHASE_EXPORT_COLUMNS.reduce((sum, column) => sum + column.width, 0);
+    const columnWidths = PURCHASE_EXPORT_COLUMNS.map((column) => pageWidth * column.width / totalColumnWidth);
+    const rowData = items.map(getPurchaseExportRow);
+    const headerHeight = 24;
+    const fontSize = 6.5;
+
+    const formatPdfValue = (value, key) => {
+      if (value == null || value === "") return "";
+      if (key === "purchaseDate") return new Date(value).toLocaleDateString();
+      if (key === "purchasePrice") return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return String(value);
+    };
+
+    const drawTableHeader = () => {
+      const headerTop = doc.y;
+      let x = doc.page.margins.left;
+      doc.font("Times-Bold").fontSize(fontSize).fillColor("#FFFFFF");
+      PURCHASE_EXPORT_COLUMNS.forEach((column, index) => {
+        const width = columnWidths[index];
+        doc.save().rect(x, headerTop, width, headerHeight).fill("#2F5496").restore();
+        doc.fillColor("#FFFFFF").text(column.header, x + 3, headerTop + 7, { width: width - 6, height: headerHeight - 6, ellipsis: true, lineBreak: false });
+        doc.rect(x, headerTop, width, headerHeight).stroke("#95B3D7");
+        x += width;
+      });
+      doc.y = headerTop + headerHeight;
+    };
+
+    doc.font("Times-Bold").fontSize(16).fillColor("#1F2937").text("CARE IT PURCHASE ITEMS REPORT", { align: "center" });
+    doc.font("Times-Roman").fontSize(9).fillColor("#4B5563").text(`Generated: ${new Date().toLocaleDateString()}`, { align: "center" });
+    const pFilterParts = [];
+    if (category) pFilterParts.push(`Category: ${category}`);
+    if (pFilterParts.length) doc.font("Times-Roman").fontSize(9).fillColor("#2F5496").text(pFilterParts.join("  |  "), { align: "center" });
+    doc.moveDown(0.8);
+    drawTableHeader();
+
+    rowData.forEach((row, rowIndex) => {
+      if (doc.y + 24 > pageBottom) {
+        doc.addPage();
+        drawTableHeader();
+      }
+      const rowTop = doc.y;
+      const cellHeights = PURCHASE_EXPORT_COLUMNS.map((column, index) => doc.heightOfString(formatPdfValue(row[column.key], column.key), { width: columnWidths[index] - 6, lineGap: 0 }));
+      const rowHeight = Math.max(20, Math.min(52, Math.max(...cellHeights) + 7));
+      let x = doc.page.margins.left;
+      PURCHASE_EXPORT_COLUMNS.forEach((column, columnIndex) => {
+        const width = columnWidths[columnIndex];
+        const fill = rowIndex % 2 === 0 ? "#D6E4F0" : "#B8CCE4";
+        doc.save().rect(x, rowTop, width, rowHeight).fill(fill).restore();
+        doc.font("Times-Roman").fontSize(fontSize).fillColor("#1F2937").text(formatPdfValue(row[column.key], column.key), x + 3, rowTop + 3, { width: width - 6, height: rowHeight - 6, ellipsis: true, lineGap: 0 });
+        doc.rect(x, rowTop, width, rowHeight).stroke("#95B3D7");
+        x += width;
+      });
+      doc.y = rowTop + rowHeight;
+    });
+
+    doc.end();
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/api/purchase-import/excel", auth, adminOnly, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const worksheet = workbook.worksheets[0];
+    const items = [];
+    const errors = [];
+    let importedCount = 0;
+
+    let headerRowNumber = 1;
+    worksheet.eachRow((row, rowNumber) => {
+      const rowHeaders = row.values.map(value => normalizeImportHeader(value)).filter(Boolean);
+      if (rowHeaders.includes('item tag') || rowHeaders.includes('category') || rowHeaders.includes('serial number')) {
+        headerRowNumber = rowNumber;
+      }
+    });
+    const headerRow = worksheet.getRow(headerRowNumber);
+    const colMap = {};
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const header = normalizeImportHeader(cell.value);
+      colMap[header] = colNumber;
+    });
+
+    const colItemTag = importColumn(colMap, ['Item Tag', 'Item ID', 'Asset Tag', 'Tag', 'Inventory Number'], 1);
+    const colCategory = importColumn(colMap, ['Category', 'Item Type', 'Equipment Type'], 2);
+    const colBrand = importColumn(colMap, ['Brand', 'Manufacturer', 'Make'], 3);
+    const colModel = importColumn(colMap, ['Model', 'Product Model'], 4);
+    const colSerial = importColumn(colMap, ['Serial Number', 'Serial No', 'Serial', 'SN'], 5);
+    const colPurchaseDate = importColumn(colMap, ['Purchase Date', 'Date Purchased', 'Acquisition Date'], 6);
+    const colPurchasePrice = importColumn(colMap, ['Purchase Price', 'Price', 'Cost', 'Value'], 7);
+    const colSupplier = importColumn(colMap, ['Supplier', 'Vendor'], 8);
+    const colInvoice = importColumn(colMap, ['Invoice Number', 'Invoice No', 'Invoice'], 9);
+    const colQuantity = importColumn(colMap, ['Quantity', 'Qty'], 10);
+    const colStatus = importColumn(colMap, ['Status', 'Item Status'], 11);
+    const colLocation = importColumn(colMap, ['Location', 'Office', 'Site', 'Station'], 12);
+    const colCondition = importColumn(colMap, ['Condition', 'Item Condition'], 13);
+    const colAssignedTo = importColumn(colMap, ['Assigned To', 'Assignee', 'Staff Name', 'Owner', 'User'], 14);
+    const colNotes = importColumn(colMap, ['Notes', 'Remarks', 'Comments'], 15);
+
+    const categoryAliases = { charger: 'Laptop Charger', 'laptop charger': 'Laptop Charger', phone: 'Mobile Phones', 'mobile phone': 'Mobile Phones', tablet: 'Tablets', printer: 'Printers', toner: 'Toner', 'docking station': 'Docking Station', dock: 'Docking Station', 'keyboard': 'Keyboard Combo/Mouse', 'keyboard mouse': 'Keyboard Combo/Mouse', 'combo': 'Keyboard Combo/Mouse' };
+    const statusAliases = { stock: 'In Stock', 'in stock': 'In Stock', assigned: 'Assigned', used: 'Used', damaged: 'Damaged', disposed: 'Disposed' };
+    const conditionAliases = { new: 'New', good: 'Good', ok: 'Good', faulty: 'Faulty', damaged: 'Damaged', ber: 'BER' };
+
+    const parseExcelDate = (value) => {
+      if (!value) return undefined;
+      if (value instanceof Date) return value;
+      if (typeof value === 'number') return new Date(Math.round((value - 25569) * 86400 * 1000));
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? undefined : d;
+    };
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= headerRowNumber) return;
+      try {
+        const cellText = (col) => {
+          const v = col ? row.getCell(col).value : undefined;
+          return v == null ? '' : String(v).toString().trim();
+        };
+        const itemTag = cellText(colItemTag).toUpperCase() || generateImportIdentifier('PUR');
+        const categoryRaw = cellText(colCategory);
+        const category = normalizeImportValue(categoryRaw, PURCHASE_CATEGORIES, categoryAliases) || 'Other';
+        const status = normalizeImportValue(cellText(colStatus), ["In Stock", "Assigned", "Used", "Damaged", "Disposed"], statusAliases) || 'In Stock';
+        const condition = normalizeImportValue(cellText(colCondition), ["New", "Good", "Faulty", "BER", "Damaged"], conditionAliases) || 'New';
+        const purchaseDate = parseExcelDate(row.getCell(colPurchaseDate)?.value);
+
+        if (!purchaseDate) {
+          errors.push(`Row ${rowNumber}: Missing or invalid Purchase Date`);
+          return;
+        }
+
+        const qtyRaw = cellText(colQuantity);
+        const quantity = qtyRaw ? Number(qtyRaw) || 1 : 1;
+        const priceRaw = cellText(colPurchasePrice);
+        const purchasePrice = priceRaw ? Number(priceRaw) : undefined;
+
+        items.push({
+          itemTag,
+          category,
+          brand: cellText(colBrand) || undefined,
+          model: cellText(colModel) || undefined,
+          serialNumber: cellText(colSerial) || undefined,
+          purchaseDate,
+          purchasePrice,
+          supplier: cellText(colSupplier) || undefined,
+          invoiceNumber: cellText(colInvoice) || undefined,
+          quantity,
+          status,
+          location: cellText(colLocation) || undefined,
+          condition,
+          assignedTo: cellText(colAssignedTo) || undefined,
+          notes: cellText(colNotes) || undefined,
+        });
+      } catch (rowErr) {
+        errors.push(`Row ${rowNumber}: ${rowErr.message}`);
+      }
+    });
+
+    if (!items.length) {
+      return res.status(400).json({ message: "No valid items to import", errors });
+    }
+
+    let duplicateCount = 0;
+    const uniqueItems = [];
+    const seenTags = new Set();
+    for (const it of items) {
+      if (seenTags.has(it.itemTag)) { duplicateCount++; continue; }
+      seenTags.add(it.itemTag);
+      uniqueItems.push(it);
+    }
+
+    try {
+      const result = await PurchaseItem.insertMany(uniqueItems, { ordered: false });
+      importedCount = result.length;
+      if (duplicateCount) errors.push(`${duplicateCount} duplicate item tags skipped (within file)`);
+    } catch (insertErr) {
+      if (insertErr.code === 11000) {
+        importedCount = insertErr.insertedDocs?.length || 0;
+        const dup = (insertErr.result?.result?.insertedCount != null) ? (uniqueItems.length - insertErr.result.result.insertedCount) : 0;
+        if (dup) errors.push(`${dup} items had duplicate Item Tags in database`);
+      } else throw insertErr;
+    }
+
+    res.json({ message: `${importedCount} purchase item(s) imported successfully`, importedCount, errors });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/* =========================
    HEALTH CHECK
 ========================= */
 app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
+  const databaseReady = mongoose.connection.readyState === 1;
+  res.status(200).json({
+    status: "OK",
+    database: databaseReady ? "connected" : "connecting",
+    timestamp: new Date().toISOString()
+  });
 });
 
 /* =========================
