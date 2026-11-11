@@ -601,6 +601,54 @@ body.dark-mode .theme-toggle:hover {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.table-responsive table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-responsive thead th {
+    background: #eef2f7;
+    border-right: 1px solid #d1d5db;
+    border-bottom: 1px solid #cbd5e1;
+    white-space: nowrap;
+}
+
+.table-responsive tbody td {
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
+}
+
+.table-responsive thead th:last-child,
+.table-responsive tbody td:last-child {
+    border-right: 0;
+}
+
+.table-responsive tbody tr:nth-child(even) {
+    background: #f8fafc;
+}
+
+.table-responsive tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.table-responsive tbody tr:hover {
+    background: #eff6ff;
+}
+
+body.dark-mode .table-responsive thead th {
+    background: #111827;
+    border-color: #374151;
+}
+
+body.dark-mode .table-responsive tbody td {
+    border-color: #374151;
+}
+
+body.dark-mode .table-responsive tbody tr:nth-child(even) {
+    background: #1b2737;
+}
+
 .action-buttons {
     display: flex;
     gap: 8px;
