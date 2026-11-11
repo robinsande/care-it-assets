@@ -1,7 +1,7 @@
 // ========================================
 // CONFIGURATION
 // ========================================
-const API_URL = 'https://care-it-backend.onrender.com/api';
+const API_URL = 'https://assetsbackend.ck-apps.com/api';
 const API_TIMEOUT = 15000;
 const HEALTH_TIMEOUT = 8000;
 const API_RETRY_DELAYS = [250, 750];
