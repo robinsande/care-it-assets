@@ -648,21 +648,26 @@ body.dark-mode .table-responsive tbody tr:nth-child(even) {
     margin-bottom: 20px;
 }
 
-#utilitiesPage .table-responsive table {
-    min-width: 1280px;
-}
-
 .consumable-entry-fields {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 230px;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
 }
 
 .consumable-entry-fields input {
-    width: 66px;
+    box-sizing: border-box;
+    width: 0;
+    flex: 1 1 0;
     min-width: 0;
-    padding: 7px;
+    padding: 6px 4px;
+}
+
+.consumable-entry-fields .btn {
+    flex: 0 0 auto;
+    padding: 6px;
+    font-size: 0.75rem;
 }
 
 .asset-action-select,
@@ -1530,7 +1535,46 @@ body.dark-mode .admin-summary-card:hover .admin-summary-icon {
 
 #utilitiesPage .table-responsive table {
     width: 100%;
-    min-width: 1280px;
+    min-width: 0;
+    table-layout: fixed;
+}
+
+#utilitiesPage .table-responsive th:nth-child(1) { width: 20%; }
+#utilitiesPage .table-responsive th:nth-child(2) { width: 7%; }
+#utilitiesPage .table-responsive th:nth-child(3) { width: 12%; }
+#utilitiesPage .table-responsive th:nth-child(4) { width: 6%; }
+#utilitiesPage .table-responsive th:nth-child(5) { width: 7%; }
+#utilitiesPage .table-responsive th:nth-child(6) { width: 6%; }
+#utilitiesPage .table-responsive th:nth-child(7) { width: 6%; }
+#utilitiesPage .table-responsive th:nth-child(8) { width: 8%; }
+#utilitiesPage .table-responsive th:nth-child(9) { width: 22%; }
+#utilitiesPage .table-responsive th:nth-child(10) { width: 6%; }
+
+#utilitiesPage .table-responsive th,
+#utilitiesPage .table-responsive td {
+    padding: 8px 5px;
+    overflow-wrap: anywhere;
+}
+
+#utilitiesPage .table-responsive thead th {
+    white-space: normal;
+    font-size: 0.82rem;
+}
+
+#utilitiesPage .table-responsive tbody td:nth-child(2),
+#utilitiesPage .table-responsive tbody td:nth-child(4),
+#utilitiesPage .table-responsive tbody td:nth-child(n+5):nth-child(-n+8) {
+    text-align: center;
+    white-space: nowrap;
+}
+
+#utilitiesPage .action-buttons {
+    justify-content: center;
+}
+
+#utilitiesPage .action-buttons .btn {
+    padding: 6px;
+    font-size: 0.75rem;
 }
 
 @media (min-width: 1400px) {

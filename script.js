@@ -498,14 +498,14 @@ async function loadConsumableStock() {
         return;
     }
 
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center">Loading stock...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading stock...</td></tr>';
     try {
         const items = await apiCall('/consumables?year=' + encodeURIComponent(year), 'GET');
         if (!items) throw new Error('Unable to load consumable stock');
         allConsumables = items;
         renderConsumablesTable();
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">Unable to load consumable stock</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">Unable to load consumable stock</td></tr>';
         showMessage('utilitiesMessage', 'Error loading stock: ' + error.message, 'error', 0);
     }
 }
@@ -541,7 +541,7 @@ function renderConsumablesTable() {
         return (!category || item.category === category) && text.includes(search);
     });
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No consumables match your filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">No consumables match your filters</td></tr>';
         return;
     }
 
@@ -576,7 +576,6 @@ function renderConsumablesTable() {
             '<td>' + received.toLocaleString() + '</td>' +
             '<td>' + issued.toLocaleString() + '</td>' +
             '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
-            '<td>' + escapeConsumableText(item.condition || '-') + '</td>' +
             '<td>' + entryFields + '</td>' +
             '<td><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
