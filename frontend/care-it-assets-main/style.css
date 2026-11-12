@@ -386,7 +386,8 @@ tbody tr:hover {
     flex: 1;
 }
 
-.header-nav a {
+.header-nav a,
+.header-nav button {
     color: white;
     text-decoration: none;
     font-weight: 500;
@@ -394,8 +395,49 @@ tbody tr:hover {
     cursor: pointer;
 }
 
-.header-nav a:hover {
+.header-nav button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+}
+
+.header-nav a:hover,
+.header-nav button:hover {
     opacity: 0.8;
+}
+
+.header-nav a:focus-visible,
+.header-nav button:focus-visible,
+.mobile-menu-btn:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 4px;
+    border-radius: 3px;
+}
+
+#headerUtilities .header-nav a,
+#headerUtilities .header-nav button,
+#headerUtilities .mobile-menu-btn {
+    color: #1f2937;
+}
+
+#headerUtilities .header-nav a:hover,
+#headerUtilities .header-nav button:hover {
+    opacity: 1;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+#headerUtilities .header-nav a:focus-visible,
+#headerUtilities .header-nav button:focus-visible,
+#headerUtilities .mobile-menu-btn:focus-visible {
+    outline-color: #111827;
+}
+
+#consumablesTable,
+#consumablesMonth {
+    scroll-margin-top: 90px;
 }
 
 .header-right {
@@ -423,12 +465,14 @@ tbody tr:hover {
     font-size: 1.5rem;
 }
 
-body.dark-mode .header-nav a {
+body.dark-mode .header-nav a,
+body.dark-mode .header-nav button {
     position: relative;
     transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-body.dark-mode .header-nav a::after {
+body.dark-mode .header-nav a::after,
+body.dark-mode .header-nav button::after {
     content: '';
     position: absolute;
     left: 0;
@@ -440,14 +484,28 @@ body.dark-mode .header-nav a::after {
     transition: right 0.25s ease;
 }
 
-body.dark-mode .header-nav a:hover {
+body.dark-mode .header-nav a:hover,
+body.dark-mode .header-nav button:hover {
     color: #fff7ed;
     opacity: 1;
     text-shadow: 0 0 8px rgba(255, 209, 102, 0.85);
 }
 
-body.dark-mode .header-nav a:hover::after {
+body.dark-mode .header-nav a:hover::after,
+body.dark-mode .header-nav button:hover::after {
     right: 0;
+}
+
+body.dark-mode #headerUtilities .header-nav a,
+body.dark-mode #headerUtilities .header-nav button,
+body.dark-mode #headerUtilities .mobile-menu-btn {
+    color: white;
+}
+
+body.dark-mode #headerUtilities .header-nav a:focus-visible,
+body.dark-mode #headerUtilities .header-nav button:focus-visible,
+body.dark-mode #headerUtilities .mobile-menu-btn:focus-visible {
+    outline-color: white;
 }
 
 body.dark-mode .btn:hover {

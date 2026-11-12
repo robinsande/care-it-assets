@@ -15,6 +15,7 @@ let allActivityLogs = [];
 let allConsumables = [];
 let editingPurchaseItemId = null;
 let editingConsumableId = null;
+let consumableModalTrigger = null;
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
@@ -415,18 +416,18 @@ function renderUtilitiesHeader() {
         userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
     let headerHTML = '<div class="header-container">';
     headerHTML += '<div class="header-logo"><h1>Utilities</h1><span class="role-badge">' + roleDisplay + '</span></div>';
-    headerHTML += '<nav class="header-nav">';
-    headerHTML += '<a href="#" onclick="document.getElementById(\'utilitiesPage\').scrollIntoView({behavior:\'smooth\'}); return false;">Stock Levels</a>';
-    headerHTML += '<a href="#" onclick="document.getElementById(\'consumablesMonth\').focus(); return false;">Monthly Entries</a>';
+    headerHTML += '<nav class="header-nav" id="utilitiesNavigation" aria-label="Utilities navigation">';
+    headerHTML += '<a href="#consumablesTable" aria-current="page" onclick="closeMobileMenu(this)">Stock Levels</a>';
+    headerHTML += '<a href="#consumablesMonth" onclick="closeMobileMenu(this)">Monthly Entries</a>';
     if (isAdmin()) {
-        headerHTML += '<a href="#" onclick="openConsumableModal(); return false;">Item Catalogue</a>';
+        headerHTML += '<button type="button" aria-haspopup="dialog" aria-controls="consumableModal" onclick="closeMobileMenu(this); openConsumableModal()">Item Catalogue</button>';
     }
-    headerHTML += '<a href="#" onclick="switchPage(\'workspacePage\'); return false;">Workspaces</a>';
+    headerHTML += '<a href="#workspacePage" onclick="closeMobileMenu(this); switchPage(\'workspacePage\')">Workspaces</a>';
     headerHTML += '</nav><div class="header-right">';
     headerHTML += '<div class="user-info"><span>' + escapeConsumableText(user?.email || '') + '</span>';
     headerHTML += '<span class="role-label">' + roleDisplay + '</span></div>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button></div>';
-    headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle navigation">Menu</button></div>';
+    headerHTML += '<button type="button" class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle Utilities navigation" aria-controls="utilitiesNavigation" aria-expanded="false">Menu</button></div>';
     header.innerHTML = headerHTML;
 }
 
@@ -590,6 +591,12 @@ function openConsumableModal(itemId = null) {
         showMessage('utilitiesMessage', 'Only admins can manage the consumable catalogue.', 'error');
         return;
     }
+    const activeElement = document.activeElement;
+    const activeNavigation = activeElement.closest('.header-nav');
+    const mobileToggle = activeNavigation?.closest('.header-container')?.querySelector('.mobile-menu-btn');
+    consumableModalTrigger = activeNavigation && window.matchMedia('(max-width: 768px)').matches && mobileToggle
+        ? mobileToggle
+        : activeElement;
     document.getElementById('consumableForm').reset();
     editingConsumableId = itemId;
     const item = itemId ? allConsumables.find(entry => entry._id === itemId) : null;
@@ -601,11 +608,15 @@ function openConsumableModal(itemId = null) {
     document.getElementById('consumableOpeningBalance').value = item ? item.openingBalance : 0;
     document.getElementById('consumableCondition').value = item ? item.condition || '' : '';
     document.getElementById('consumableModal').style.display = 'flex';
+    document.getElementById('consumableItemName').focus();
 }
 
 function closeConsumableModal() {
     document.getElementById('consumableModal').style.display = 'none';
     editingConsumableId = null;
+    const trigger = consumableModalTrigger;
+    consumableModalTrigger = null;
+    if (trigger?.isConnected) trigger.focus();
 }
 
 async function submitConsumableForm(event) {
@@ -682,9 +693,60 @@ document.addEventListener('keydown', event => {
 function toggleMobileMenu(button) {
     const nav = button.closest('.header-container')?.querySelector('.header-nav');
     if (nav) {
-        nav.classList.toggle('active');
+        const isOpen = nav.classList.toggle('active');
+        button.setAttribute('aria-expanded', String(isOpen));
+        if (isOpen) {
+            nav.querySelector('a, button')?.focus();
+        } else {
+            button.focus();
+        }
     }
 }
+
+function closeMobileMenu(element) {
+    const headerContainer = element.closest('.header-container');
+    const nav = headerContainer?.querySelector('.header-nav');
+    if (!nav) return;
+    nav.classList.remove('active');
+    headerContainer.querySelector('.mobile-menu-btn')?.setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        const activeNavigation = document.querySelector('#headerUtilities .header-nav.active');
+        if (activeNavigation) {
+            const toggle = activeNavigation.closest('.header-container')?.querySelector('.mobile-menu-btn');
+            closeMobileMenu(activeNavigation);
+            toggle?.focus();
+            return;
+        }
+    }
+
+    const modal = document.getElementById('consumableModal');
+    if (!modal || modal.style.display !== 'flex') return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeConsumableModal();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.getClientRects().length);
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 // ========================================
 // AUTHENTICATION HANDLERS
