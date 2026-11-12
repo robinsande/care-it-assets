@@ -635,6 +635,36 @@ body.dark-mode .table-responsive tbody tr:nth-child(even) {
     gap: 8px;
 }
 
+#utilitiesPage .consumables-filters {
+    grid-template-columns: minmax(240px, 2fr) minmax(190px, 1fr) repeat(2, minmax(120px, 0.6fr));
+    align-items: center;
+}
+
+#utilitiesPage .consumables-filters .search-box {
+    grid-column: auto;
+}
+
+#utilitiesPage .consumables-summary {
+    margin-bottom: 20px;
+}
+
+#utilitiesPage .table-responsive table {
+    min-width: 1280px;
+}
+
+.consumable-entry-fields {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 230px;
+}
+
+.consumable-entry-fields input {
+    width: 66px;
+    min-width: 0;
+    padding: 7px;
+}
+
 .asset-action-select,
 .table-action-select {
     width: auto;
@@ -1675,6 +1705,10 @@ input[type="checkbox"] {
 
     .filters {
         grid-template-columns: 1fr;
+    }
+
+    #utilitiesPage .consumables-filters .search-box {
+        grid-column: 1 / -1;
     }
 
     .grid-2 {

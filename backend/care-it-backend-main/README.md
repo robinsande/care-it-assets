@@ -4,6 +4,10 @@
 
 Set `JWT_EXPIRE=30d` in the deployed backend environment so authenticated sessions survive up to thirty days. A deliberate sign out still clears the browser session immediately.
 
+## Consumable stock utility
+
+The Utilities workspace tracks the 2026 stock workbook's opening balances and monthly receipts/issues. The catalogue seeds missing entries at startup without replacing saved stock data. Users and admins may record stock movements; only admins can edit the catalogue. An issue that would result in negative stock is rejected.
+
 ## Password reset email setup
 
 Configure these environment variables in Render for Brevo email delivery:

@@ -11,7 +11,9 @@ const API_RETRY_DELAYS = [250, 750];
 // ========================================
 let allAssets = [];
 let allPurchaseItems = [];
+let allConsumables = [];
 let editingPurchaseItemId = null;
+let editingConsumableId = null;
 let editingAssetId = null;
 let statusChart = null;
 let locationChart = null;
@@ -270,7 +272,7 @@ function downloadFile(blob, filename) {
 // PAGE NAVIGATION
 // ========================================
 function switchPage(pageId, options = {}) {
-    if (pageId === 'workspacePage' && !isAuthenticated()) {
+    if (['workspacePage', 'utilitiesPage'].includes(pageId) && !isAuthenticated()) {
         pageId = 'userLoginPage';
     }
 
@@ -298,6 +300,10 @@ function switchPage(pageId, options = {}) {
 
     if (pageId === 'workspacePage') {
         renderWorkspaceAccount();
+    } else if (pageId === 'utilitiesPage') {
+        renderHeader('headerUtilities');
+        renderConsumablesHeaderActions();
+        loadConsumableStock();
     } else if (pageId === 'dashboardPage') {
         renderHeader('header');
         loadDashboardData();
@@ -325,7 +331,7 @@ function initializeApp() {
     });
     if (isAuthenticated()) {
         const savedPage = localStorage.getItem('careit_active_page');
-        const restorablePages = ['workspacePage', 'dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
+        const restorablePages = ['workspacePage', 'utilitiesPage', 'dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
         switchPage(restorablePages.includes(savedPage) ? savedPage : 'workspacePage');
     } else {
         localStorage.removeItem('careit_active_page');
@@ -343,6 +349,10 @@ function renderWorkspaceAccount() {
 }
 
 function openWorkspace(workspaceId) {
+    if (workspaceId === 'utilities') {
+        switchPage(isAuthenticated() ? 'utilitiesPage' : 'userLoginPage');
+        return;
+    }
     if (workspaceId !== 'it-assets') return;
 
     switchPage(isAuthenticated() ? 'dashboardPage' : 'userLoginPage');
@@ -424,6 +434,197 @@ function renderPurchaseHeaderActions() {
     actionsHTML += '<button class="btn btn-secondary" onclick="exportPurchasePdf()">Export PDF</button>';
 
     headerActions.innerHTML = createActionDropdown(actionsHTML);
+}
+
+function renderConsumablesHeaderActions() {
+    const actions = document.getElementById('utilitiesHeaderActions');
+    if (actions) {
+        actions.innerHTML = isAdmin()
+            ? '<button class="btn btn-primary" onclick="openConsumableModal()">Add Consumable</button>'
+            : '';
+    }
+}
+
+function escapeConsumableText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
+
+async function loadConsumableStock() {
+    const tbody = document.getElementById('consumablesTableBody');
+    const yearInput = document.getElementById('consumablesYear');
+    const monthInput = document.getElementById('consumablesMonth');
+    if (!tbody || !yearInput || !monthInput) return;
+
+    if (yearInput.dataset.initialized !== 'true') {
+        yearInput.value = String(new Date().getFullYear());
+        monthInput.value = String(new Date().getMonth() + 1);
+        yearInput.dataset.initialized = 'true';
+    }
+
+    const year = Number(yearInput.value);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        showMessage('utilitiesMessage', 'Enter a year between 2000 and 2100.', 'error', 0);
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center">Loading stock...</td></tr>';
+    try {
+        const items = await apiCall('/consumables?year=' + encodeURIComponent(year), 'GET');
+        if (!items) throw new Error('Unable to load consumable stock');
+        allConsumables = items;
+        renderConsumablesTable();
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">Unable to load consumable stock</td></tr>';
+        showMessage('utilitiesMessage', 'Error loading stock: ' + error.message, 'error', 0);
+    }
+}
+
+function getConsumablesPeriod() {
+    return {
+        year: Number(document.getElementById('consumablesYear').value),
+        month: Number(document.getElementById('consumablesMonth').value),
+    };
+}
+
+function renderConsumablesTable() {
+    const tbody = document.getElementById('consumablesTableBody');
+    if (!tbody) return;
+    const { year, month } = getConsumablesPeriod();
+    const selectedPeriod = year + '-' + String(month).padStart(2, '0');
+    const search = document.getElementById('consumablesSearch').value.trim().toLowerCase();
+    const category = document.getElementById('consumablesCategoryFilter').value;
+    let receivedTotal = 0;
+    let issuedTotal = 0;
+
+    allConsumables.forEach(item => {
+        const movement = (item.movements || {})[selectedPeriod] || {};
+        receivedTotal += Number(movement.received) || 0;
+        issuedTotal += Number(movement.issued) || 0;
+    });
+    document.getElementById('consumableItemCount').textContent = allConsumables.length;
+    document.getElementById('consumableReceivedTotal').textContent = receivedTotal.toLocaleString();
+    document.getElementById('consumableIssuedTotal').textContent = issuedTotal.toLocaleString();
+
+    const items = allConsumables.filter(item => {
+        const text = [item.itemName, item.itemCode, item.category, item.unit].join(' ').toLowerCase();
+        return (!category || item.category === category) && text.includes(search);
+    });
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No consumables match your filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const id = escapeConsumableText(item._id);
+        const movements = item.movements || {};
+        const current = movements[selectedPeriod] || {};
+        const received = Number(current.received) || 0;
+        const issued = Number(current.issued) || 0;
+        const yearToDate = Object.entries(movements)
+            .filter(([period]) => period <= selectedPeriod)
+            .reduce((totals, [, movement]) => ({
+                received: totals.received + (Number(movement.received) || 0),
+                issued: totals.issued + (Number(movement.issued) || 0),
+            }), { received: 0, issued: 0 });
+        const closingBalance = (Number(item.openingBalance) || 0) + yearToDate.received - yearToDate.issued;
+        const entryFields = canAddRecords()
+            ? '<div class="consumable-entry-fields">' +
+                '<input id="consumableReceived-' + id + '" type="number" min="0" step="1" value="0" aria-label="Additional units received">' +
+                '<input id="consumableIssued-' + id + '" type="number" min="0" step="1" value="0" aria-label="Additional units issued">' +
+                '<button class="btn btn-small btn-primary" onclick="recordConsumableMovement(\'' + id + '\')">Save</button></div>'
+            : 'View only';
+        const actions = isAdmin()
+            ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
+            : '-';
+        return '<tr>' +
+            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td>' + escapeConsumableText(item.category) + '</td>' +
+            '<td>' + escapeConsumableText(item.unit || '-') + '</td>' +
+            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td>' + received.toLocaleString() + '</td>' +
+            '<td>' + issued.toLocaleString() + '</td>' +
+            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td>' + escapeConsumableText(item.condition || '-') + '</td>' +
+            '<td>' + entryFields + '</td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function openConsumableModal(itemId = null) {
+    if (!isAdmin()) {
+        showMessage('utilitiesMessage', 'Only admins can manage the consumable catalogue.', 'error');
+        return;
+    }
+    document.getElementById('consumableForm').reset();
+    editingConsumableId = itemId;
+    const item = itemId ? allConsumables.find(entry => entry._id === itemId) : null;
+    document.getElementById('consumableModalTitle').textContent = item ? 'Edit Consumable' : 'Add Consumable';
+    document.getElementById('consumableItemName').value = item ? item.itemName : '';
+    document.getElementById('consumableItemCode').value = item ? item.itemCode || '' : '';
+    document.getElementById('consumableCategory').value = item ? item.category : 'Stationery';
+    document.getElementById('consumableUnit').value = item ? item.unit || '' : '';
+    document.getElementById('consumableOpeningBalance').value = item ? item.openingBalance : 0;
+    document.getElementById('consumableCondition').value = item ? item.condition || '' : '';
+    document.getElementById('consumableModal').style.display = 'flex';
+}
+
+function closeConsumableModal() {
+    document.getElementById('consumableModal').style.display = 'none';
+    editingConsumableId = null;
+}
+
+async function submitConsumableForm(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('utilitiesMessage', 'Only admins can manage the consumable catalogue.', 'error');
+        return;
+    }
+    const payload = {
+        itemName: document.getElementById('consumableItemName').value.trim(),
+        itemCode: document.getElementById('consumableItemCode').value.trim(),
+        category: document.getElementById('consumableCategory').value,
+        unit: document.getElementById('consumableUnit').value.trim(),
+        openingBalance: Number(document.getElementById('consumableOpeningBalance').value),
+        condition: document.getElementById('consumableCondition').value.trim(),
+    };
+    const editing = Boolean(editingConsumableId);
+    try {
+        const result = await apiCall(editing ? '/consumables/' + editingConsumableId : '/consumables',
+            editing ? 'PUT' : 'POST', payload);
+        if (!result) throw new Error('Unable to save consumable item');
+        closeConsumableModal();
+        showMessage('utilitiesMessage', editing ? 'Consumable item updated.' : 'Consumable item added.', 'success');
+        await loadConsumableStock();
+    } catch (error) {
+        showMessage('utilitiesMessage', 'Error saving item: ' + error.message, 'error', 0);
+    }
+}
+
+async function recordConsumableMovement(itemId) {
+    if (!canAddRecords()) {
+        showMessage('utilitiesMessage', 'You do not have permission to enter stock movements.', 'error');
+        return;
+    }
+    const received = Number(document.getElementById('consumableReceived-' + itemId).value);
+    const issued = Number(document.getElementById('consumableIssued-' + itemId).value);
+    const { year, month } = getConsumablesPeriod();
+    if (!Number.isFinite(received) || received < 0 || !Number.isFinite(issued) || issued < 0 ||
+        (received === 0 && issued === 0)) {
+        showMessage('utilitiesMessage', 'Enter a positive received or issued quantity before saving.', 'error');
+        return;
+    }
+    try {
+        const result = await apiCall('/consumables/' + itemId + '/stock', 'POST', { year, month, received, issued });
+        if (!result) throw new Error('Unable to record stock movement');
+        showMessage('utilitiesMessage', 'Stock movement recorded.', 'success');
+        await loadConsumableStock();
+    } catch (error) {
+        showMessage('utilitiesMessage', 'Error recording stock: ' + error.message, 'error', 0);
+    }
 }
 
 function createActionDropdown(actionsHTML) {
