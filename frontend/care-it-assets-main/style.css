@@ -2334,6 +2334,11 @@ button.workspace-card:focus-visible {
     color: #be123c;
 }
 
+.workspace-card-utilities .workspace-icon {
+    background: #dcfce7;
+    color: #15803d;
+}
+
 .workspace-card-title {
     margin-bottom: 8px;
     font-size: 1.3rem;
@@ -2361,6 +2366,7 @@ button.workspace-card:focus-visible {
 .workspace-card-buildings .workspace-card-action { color: #0f766e; }
 .workspace-card-furniture .workspace-card-action { color: #6d28d9; }
 .workspace-card-electronics .workspace-card-action { color: #be123c; }
+.workspace-card-utilities .workspace-card-action { color: #15803d; }
 
 body.dark-mode .workspace-page {
     background: #111827;
