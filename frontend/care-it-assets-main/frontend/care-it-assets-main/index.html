@@ -461,20 +461,11 @@
         <header class="header" id="headerUsers"></header>
 
         <div class="container">
-            <section class="admin-landing" aria-labelledby="adminLandingTitle">
-                <div class="admin-landing-copy">
-                    <div>
-                        <span class="admin-kicker">CONTROL CENTRE</span>
-                        <h1 id="adminLandingTitle">Administration Panel</h1>
-                        <p>Manage access, returned equipment, and staff-issued IT items from one workspace.</p>
-                    </div>
-                </div>
                 <div class="admin-quick-actions">
                     <button id="createUserQuickAction" class="btn btn-primary" onclick="openUserCreateModal()" style="display: none;">+ Add User</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('returnedAssetForm')">Record Return</button>
                     <button class="btn btn-secondary" onclick="focusAdminSection('issueItemForm')">Issue Equipment</button>
                 </div>
-            </section>
 
             <div class="admin-summary-grid">
                 <button class="admin-summary-card admin-summary-users" onclick="focusAdminSection('usersTableBody')">
@@ -1019,6 +1010,7 @@
                             <option value="Migori">Migori</option>
                             <option value="Busia">Busia</option>
                             <option value="Nakuru">Nakuru</option>
+                            <option value="Mandera">Mandera</option>
                             <option value="Kajiado">Kajiado</option>
                             <option value="Garissa">Garissa</option>
                             <option value="Dadaab">Dadaab</option>

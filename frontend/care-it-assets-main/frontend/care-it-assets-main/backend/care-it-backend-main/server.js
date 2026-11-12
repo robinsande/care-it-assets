@@ -685,7 +685,8 @@ const assetSchema = new mongoose.Schema({
       "Dadaab-DMO",
       "IFO",
       "Hagadera",
-      "Dagahaley"
+      "Dagahaley",
+      "Mandera"
     ],
   },
   condition: {
