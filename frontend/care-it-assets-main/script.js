@@ -306,7 +306,7 @@ function switchPage(pageId, options = {}) {
     if (pageId === 'workspacePage') {
         renderWorkspaceAccount();
     } else if (pageId === 'utilitiesPage') {
-        renderHeader('headerUtilities');
+        renderUtilitiesHeader();
         renderConsumablesHeaderActions();
         loadConsumableStock();
     } else if (pageId === 'dashboardPage') {
@@ -402,6 +402,31 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle navigation">Menu</button>';
     headerHTML += '</div>';
 
+    header.innerHTML = headerHTML;
+}
+
+function renderUtilitiesHeader() {
+    const header = document.getElementById('headerUtilities');
+    if (!header) return;
+
+    const user = getUser();
+    const userRole = getUserRole();
+    const roleDisplay = userRole === 'superadmin' ? 'SUPER ADMIN' :
+        userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
+    let headerHTML = '<div class="header-container">';
+    headerHTML += '<div class="header-logo"><h1>Utilities</h1><span class="role-badge">' + roleDisplay + '</span></div>';
+    headerHTML += '<nav class="header-nav">';
+    headerHTML += '<a href="#" onclick="document.getElementById(\'utilitiesPage\').scrollIntoView({behavior:\'smooth\'}); return false;">Stock Levels</a>';
+    headerHTML += '<a href="#" onclick="document.getElementById(\'consumablesMonth\').focus(); return false;">Monthly Entries</a>';
+    if (isAdmin()) {
+        headerHTML += '<a href="#" onclick="openConsumableModal(); return false;">Item Catalogue</a>';
+    }
+    headerHTML += '<a href="#" onclick="switchPage(\'workspacePage\'); return false;">Workspaces</a>';
+    headerHTML += '</nav><div class="header-right">';
+    headerHTML += '<div class="user-info"><span>' + escapeConsumableText(user?.email || '') + '</span>';
+    headerHTML += '<span class="role-label">' + roleDisplay + '</span></div>';
+    headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button></div>';
+    headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle navigation">Menu</button></div>';
     header.innerHTML = headerHTML;
 }
 
