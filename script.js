@@ -671,8 +671,6 @@ async function handleChangePassword(event) {
 // ========================================
 // DASHBOARD FUNCTIONS
 // ========================================
-const ISSUABLE_STATUSES = ["Available", "In Storage"];
-
 async function loadDashboardData() {
     const dashboardStartedAt = performance.now();
     perfLog('dashboard:load-start');
@@ -785,7 +783,6 @@ async function loadDashboardData() {
         animateCount('lostAssets', lostCount);
 
         const normStatus = s => (s || '').toString().trim().toLowerCase();
-        const isIssuable = a => { const s = normStatus(a.status); return s === 'available' || s === 'in storage'; };
         const normCond = c => (c || '').toString().trim().toLowerCase();
         const isGood = a => { const c = normCond(a.condition); return c === 'good' || c === 'new'; };
         const isFaulty = a => { const c = normCond(a.condition); return c === 'faulty' || c === 'damaged'; };
@@ -800,20 +797,6 @@ async function loadDashboardData() {
             });
             return Object.entries(map).map(([k, v]) => ({ _id: k, count: v })).sort((x, y) => y.count - x.count);
         }
-        function groupIssuable(arr, field) {
-            const map = {};
-            arr.forEach(a => {
-                if (!isIssuable(a)) return;
-                const key = a[field] || (field === 'department' ? 'Unassigned' : 'Unknown');
-                map[key] = (map[key] || 0) + 1;
-            });
-            return map;
-        }
-
-        const locAvailMap = groupIssuable(assetsData, 'location');
-        const deptAvailMap = groupIssuable(assetsData, 'department');
-        const catAvailMap = groupIssuable(assetsData, 'category');
-
         const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0, disposed: 0, approved: 0 };
         assetsData.forEach(a => {
             const sraw = (a.status || '').toString().trim();
@@ -839,18 +822,13 @@ async function loadDashboardData() {
         const statusTableBody = document.getElementById('statusTableBody');
         statusTableBody.innerHTML = statusRows.map(r => {
             const cnt = statusCounts[r.key] || 0;
-            const av = (r.key === 'available' || r.key === 'in storage') ? cnt : 0;
             const filt = r.key === 'faultyUnderRepair' ? {} : (r.key === 'faulty' ? { condition: 'Faulty' } : { status: r.badgeLabel });
             const ddAttr = r.key === 'faultyUnderRepair'
                 ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
                 : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
-            const avCell = (r.key === 'available' || r.key === 'in storage')
-                ? ('<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ status: r.badgeLabel }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Issuable assets in this status">' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>')
-                : ('<td>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>');
             return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
                 '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
                 '<td><strong>' + cnt + '</strong></td>' +
-                avCell +
                 '</tr>';
         }).join('');
 
@@ -869,24 +847,18 @@ async function loadDashboardData() {
 
         const locationTableBody = document.getElementById('locationTableBody');
         locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
-            const av = locAvailMap[item._id] || 0;
-            const locAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ location: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets at this location"';
             return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
                 '<td>' + item._id + '</td>' +
                 '<td><strong>' + item.count + '</strong></td>' +
-                '<td ' + locAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                 '</tr>';
         }).join('');
 
         const departmentTableBody = document.getElementById('departmentTableBody');
         if (departmentTableBody) {
             departmentTableBody.innerHTML = localDepartmentData.slice(0, 8).map(item => {
-                const av = deptAvailMap[item._id] || 0;
-                const deptAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ department: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this dept"';
                 return '<tr ' + rowHover + ' title="View assets in &quot;' + item._id + '&quot;" ' + ddAttrFor({ department: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
-                    '<td ' + deptAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -894,12 +866,9 @@ async function loadDashboardData() {
         const categoryAllTableBody = document.getElementById('categoryAllTableBody');
         if (categoryAllTableBody) {
             categoryAllTableBody.innerHTML = localCategoryData.map(item => {
-                const av = catAvailMap[item._id] || 0;
-                const catAvailDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: item._id, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable assets in this category"';
                 return '<tr ' + rowHover + ' title="View &quot;' + item._id + '&quot; assets" ' + ddAttrFor({ category: item._id }) + '>' +
                     '<td>' + item._id + '</td>' +
                     '<td><strong>' + item.count + '</strong></td>' +
-                    '<td ' + catAvailDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -933,15 +902,12 @@ async function loadDashboardData() {
         if (healthTableBody) {
             const dataRows = [...allCats].sort().map(cat => {
                 const h = healthMap[cat] || { good: 0, faulty: 0, lost: 0 };
-                const av = catAvailMap[cat] || 0;
                 const catTotal = h.good + h.faulty + h.lost;
-                const availDD = 'onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, statuses: ISSUABLE_STATUSES }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="' + av + ' issuable (Available/In Storage) in this category"';
                 return '<tr ' + rowHover + ' title="View &quot;' + cat + '&quot; category assets (' + catTotal + ' total)" ' + ddAttrFor({ category: cat }) + '>' +
                     '<td>' + cat + '</td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Good' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Good/New in this category: ' + h.good + '"><strong style="color:#10b981">' + h.good + '</strong></td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, condition: 'Faulty' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Faulty/Damaged/Under Repair in this category: ' + h.faulty + '"><strong style="color:#f59e0b">' + h.faulty + '</strong></td>' +
                     '<td onclick="event.stopPropagation();drillDownToAssets(' + JSON.stringify({ category: cat, status: 'Lost' }).replace(/"/g, '&quot;') + ')" style="cursor:pointer" title="Lost in this category: ' + h.lost + '"><strong style="color:#ef4444">' + h.lost + '</strong></td>' +
-                    '<td ' + availDD + '>' + (av > 0 ? '<strong style="color:#10b981">✓ ' + av + '</strong>' : '<span style="color:#94a3b8">—</span>') + '</td>' +
                     '</tr>';
             });
             const footerHTML = '<tr style="font-weight:700;background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(251,191,36,0.08));border-top:2px solid #cbd5e1">' +
@@ -949,9 +915,8 @@ async function loadDashboardData() {
                 '<td style="color:#059669;font-size:1.05rem">' + healthTotals.good + '</td>' +
                 '<td style="color:#d97706;font-size:1.05rem">' + healthTotals.faulty + '</td>' +
                 '<td style="color:#dc2626;font-size:1.05rem">' + healthTotals.lost + '</td>' +
-                '<td><strong style="color:#334155">' + (healthTotals.good + healthTotals.faulty + healthTotals.lost) + '</strong></td>' +
                 '</tr>';
-            healthTableBody.innerHTML = (dataRows.length ? dataRows.join('') : '<tr><td colspan="5" class="text-center no-data">No category data</td></tr>') + footerHTML;
+            healthTableBody.innerHTML = (dataRows.length ? dataRows.join('') : '<tr><td colspan="4" class="text-center no-data">No category data</td></tr>') + footerHTML;
         }
 
         const chartStatusInput = statusRows.map(r => ({ _id: r.badgeLabel, count: statusCounts[r.key] || 0 }));
@@ -1087,15 +1052,15 @@ async function loadDashboardData() {
         showMessage('dashboardMessage', 'Error loading dashboard: ' + error.message, 'error', 0);
         const _errStatusWidget = document.getElementById('statusWidgetBody');
         const _errStatusTbody = document.getElementById('statusTableBody') || _errStatusWidget;
-        if (_errStatusTbody) _errStatusTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        if (_errStatusTbody) _errStatusTbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errLocationTbody = document.getElementById('locationTableBody');
-        if (_errLocationTbody) _errLocationTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        if (_errLocationTbody) _errLocationTbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errDeptTbody = document.getElementById('departmentTableBody');
-        if (_errDeptTbody) _errDeptTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        if (_errDeptTbody) _errDeptTbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errCatAllTbody = document.getElementById('categoryAllTableBody');
-        if (_errCatAllTbody) _errCatAllTbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        if (_errCatAllTbody) _errCatAllTbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errHealthTbody = document.getElementById('categoryHealthTableBody');
-        if (_errHealthTbody) _errHealthTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
+        if (_errHealthTbody) _errHealthTbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errRecentAssetsTbody = document.getElementById('recentAssetsBody');
         if (_errRecentAssetsTbody) _errRecentAssetsTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color:#dc2626">Failed to load: ' + error.message + '</td></tr>';
         const _errRecentActivityTbody = document.getElementById('recentActivityBody');
