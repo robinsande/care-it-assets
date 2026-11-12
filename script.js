@@ -820,17 +820,19 @@ async function loadDashboardData() {
         if (statusCounts.disposed > 0) statusRows.push({ label: 'Disposed', key: 'disposed', badgeLabel: 'Disposed' });
         if (statusCounts.approved > 0) statusRows.push({ label: 'Approved for Disposal', key: 'approved', badgeLabel: 'Approved for Disposal' });
         const statusTableBody = document.getElementById('statusTableBody');
-        statusTableBody.innerHTML = statusRows.map(r => {
-            const cnt = statusCounts[r.key] || 0;
-            const filt = r.key === 'faultyUnderRepair' ? {} : (r.key === 'faulty' ? { condition: 'Faulty' } : { status: r.badgeLabel });
-            const ddAttr = r.key === 'faultyUnderRepair'
-                ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
-                : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
-            return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
-                '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
-                '<td><strong>' + cnt + '</strong></td>' +
-                '</tr>';
-        }).join('');
+        if (statusTableBody) {
+            statusTableBody.innerHTML = statusRows.map(r => {
+                const cnt = statusCounts[r.key] || 0;
+                const filt = r.key === 'faultyUnderRepair' ? {} : (r.key === 'faulty' ? { condition: 'Faulty' } : { status: r.badgeLabel });
+                const ddAttr = r.key === 'faultyUnderRepair'
+                    ? 'onclick="drillDownToAssets({search:\'Under Repair Faulty\'})"'
+                    : 'onclick="drillDownToAssets(' + JSON.stringify(filt).replace(/"/g, '&quot;') + ')"';
+                return '<tr style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'" ' + ddAttr + ' title="View matching assets">' +
+                    '<td><span class="badge ' + getStatusBadgeClass(r.badgeLabel) + '">' + r.label + '</span></td>' +
+                    '<td><strong>' + cnt + '</strong></td>' +
+                    '</tr>';
+            }).join('');
+        }
 
         const localLocationData = groupByField(assetsData, 'location');
         const localDepartmentData = groupByField(assetsData, 'department');
@@ -846,12 +848,14 @@ async function loadDashboardData() {
         const rowHover = 'style="cursor:pointer;transition:transform .15s" onmouseover="this.style.transform=\'translateX(3px)\'" onmouseout="this.style.transform=\'translateX(0)\'"';
 
         const locationTableBody = document.getElementById('locationTableBody');
-        locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
-            return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
-                '<td>' + item._id + '</td>' +
-                '<td><strong>' + item.count + '</strong></td>' +
-                '</tr>';
-        }).join('');
+        if (locationTableBody) {
+            locationTableBody.innerHTML = localLocationData.slice(0, 8).map(item => {
+                return '<tr ' + rowHover + ' title="View assets at &quot;' + item._id + '&quot;" ' + ddAttrFor({ location: item._id }) + '>' +
+                    '<td>' + item._id + '</td>' +
+                    '<td><strong>' + item.count + '</strong></td>' +
+                    '</tr>';
+            }).join('');
+        }
 
         const departmentTableBody = document.getElementById('departmentTableBody');
         if (departmentTableBody) {
