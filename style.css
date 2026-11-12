@@ -698,7 +698,7 @@ body.dark-mode .table-responsive tbody tr:nth-child(even) {
 }
 
 #userLoginPage .auth-container {
-    background: #fff;
+    background: #fff !important;
 }
 
 .auth-card {

@@ -588,7 +588,7 @@ body.dark-mode .theme-toggle:hover {
 }
 
 #userLoginPage .auth-container {
-    background: #fff;
+    background: #fff !important;
 }
 
 .auth-card {
