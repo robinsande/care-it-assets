@@ -37,16 +37,6 @@ function applyTheme() {
     }
 }
 
-function toggleDarkMode() {
-    localStorage.setItem('careit_dark_mode', String(!isDarkMode()));
-    applyTheme();
-    updateDashboardChartTheme();
-    document.querySelectorAll('.theme-toggle').forEach(button => {
-        button.textContent = isDarkMode() ? '☀ Light' : '◐ Dark';
-        button.setAttribute('aria-pressed', String(isDarkMode()));
-    });
-}
-
 applyTheme();
 
 function animateCount(elementId, target, duration = 900) {
@@ -393,7 +383,6 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<span>' + (user?.email || '') + '</span>';
     headerHTML += '<span class="role-label">' + (userRole === 'superadmin' ? 'Super Admin' : userRole === 'admin' ? 'Admin' : userRole === 'viewer' ? 'Viewer' : 'User') + '</span>';
     headerHTML += '</div>';
-    headerHTML += '<button class="theme-toggle" type="button" onclick="toggleDarkMode()" aria-label="Toggle dark mode" aria-pressed="' + isDarkMode() + '">' + (isDarkMode() ? '☀ Light' : '◐ Dark') + '</button>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button>';
     headerHTML += '</div>';
     headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle navigation">Menu</button>';
@@ -684,16 +673,6 @@ async function handleChangePassword(event) {
 // ========================================
 const ISSUABLE_STATUSES = ["Available", "In Storage"];
 
-function setAvailabilityPill(pillId, available, total) {
-    const pill = document.getElementById(pillId);
-    if (!pill) return;
-    const av = Number(available || 0);
-    const tot = Number(total || 0);
-    const pct = tot > 0 ? Math.round((av / tot) * 100) : 0;
-    pill.textContent = av + ' issuable of ' + tot + ' (' + pct + '%)';
-    pill.classList.toggle('zero', av === 0);
-}
-
 async function loadDashboardData() {
     const dashboardStartedAt = performance.now();
     perfLog('dashboard:load-start');
@@ -728,17 +707,6 @@ async function loadDashboardData() {
         const _recentActivityTbody = document.getElementById('recentActivityBody');
         if (_recentActivityTbody) _recentActivityTbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading…</td></tr>';
 
-        // Set dashboard date
-        const dateEl = document.querySelector('#dashboardDate span');
-        if (dateEl) {
-            dateEl.textContent = new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        }
-
         const dashboardRequestStartedAt = performance.now();
         const assetsData = await apiCall('/dashboard/assets', 'GET');
         perfLog('dashboard:fetches-end', { durationMs: Math.round(performance.now() - dashboardRequestStartedAt) });
@@ -746,14 +714,14 @@ async function loadDashboardData() {
         window.__dashboardAllAssets = assetsData;
 
         function statCounts(arr) {
-            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, issuable: 0, disposed: 0, approved: 0, unknown: 0 };
+            const c = { total: arr.length, available: 0, assigned: 0, inStorage: 0, underRepair: 0, lost: 0, disposed: 0, approved: 0, unknown: 0 };
             const unkCounts = {};
             arr.forEach(a => {
                 const sraw = (a.status || '').toString().trim();
                 const s = sraw.toLowerCase();
-                if (s === 'available') { c.available++; c.issuable++; }
+                if (s === 'available') c.available++;
                 else if (s === 'assigned') c.assigned++;
-                else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') { c.inStorage++; c.issuable++; }
+                else if (s === 'in storage' || s === 'in stock' || s === 'stored' || s === 'storage') c.inStorage++;
                 else if (s === 'under repair' || s === 'repairing' || s === 'in repair') c.underRepair++;
                 else if (s === 'lost') c.lost++;
                 else if (s.includes('disposed') || s === 'dispose') c.disposed++;
@@ -770,7 +738,6 @@ async function loadDashboardData() {
         const storageCount = counts.inStorage;
         const repairCount = counts.underRepair;
         const lostCount = counts.lost;
-        const issuableCount = counts.issuable;
 
         // ---- Extra stats cards for Disposed / Approved For Disposal if present ----
         const disposedCount = counts.disposed || 0;
@@ -846,19 +813,6 @@ async function loadDashboardData() {
         const locAvailMap = groupIssuable(assetsData, 'location');
         const deptAvailMap = groupIssuable(assetsData, 'department');
         const catAvailMap = groupIssuable(assetsData, 'category');
-
-        setAvailabilityPill('avail-category', issuableCount, totalCount);
-        setAvailabilityPill('avail-status', issuableCount, totalCount);
-        setAvailabilityPill('avail-department', issuableCount, totalCount);
-        setAvailabilityPill('avail-location', issuableCount, totalCount);
-        setAvailabilityPill('avail-categorygood', assetsData.filter(isGood).filter(isIssuable).length, issuableCount);
-        setAvailabilityPill('avail-categoryfaulty', assetsData.filter(isFaulty).filter(isIssuable).length, issuableCount);
-        setAvailabilityPill('avail-categorylost', 0, issuableCount);
-        setAvailabilityPill('avail-statustable', issuableCount, totalCount);
-        setAvailabilityPill('avail-healthtable', issuableCount, totalCount);
-        setAvailabilityPill('avail-locationstable', issuableCount, totalCount);
-        setAvailabilityPill('avail-departmentstable', issuableCount, totalCount);
-        setAvailabilityPill('avail-categorytable', issuableCount, totalCount);
 
         const statusCounts = { available: 0, 'in storage': 0, assigned: 0, 'under repair': 0, faulty: 0, lost: 0, disposed: 0, approved: 0 };
         assetsData.forEach(a => {
@@ -1174,12 +1128,6 @@ function applyDashboardFilters() {
     if (!hasAny) return;
 
     if (matchCount) matchCount.textContent = matches.length;
-    const issuable = matches.filter(m => {
-        const s = (m.status || '').toString().trim().toLowerCase();
-        return s === 'available' || s === 'in storage';
-    }).length;
-    setAvailabilityPill('avail-dashboard-match', issuable, matches.length);
-
     if (matchesBody) {
         if (!matches.length) {
             matchesBody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No matching assets</td></tr>';
@@ -1523,12 +1471,6 @@ function createCategoryLostChart(data) {
             },
             plugins: { legend: { display: false } }
         }
-    });
-}
-
-function updateDashboardChartTheme() {
-    [statusChart, locationChart, departmentChart, categoryAllChart, categoryGoodChart, categoryFaultyChart, categoryLostChart].forEach(chart => {
-        if (chart) chart.update('none');
     });
 }
 

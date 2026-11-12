@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assets</title>
     <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20261111-main">
-    <link rel="stylesheet" href="style.css?v=20261112-aptos-nav-users">
+    <link rel="stylesheet" href="style.css?v=20261112-dashboard-cleanup">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -224,9 +224,6 @@
                     <h1>Overview Dashboard</h1>
                     <p>Welcome back! Here's a comprehensive view of your IT asset inventory.</p>
                 </div>
-                <div class="dashboard-date" id="dashboardDate">
-                    📅 <span></span>
-                </div>
             </div>
 
             <div id="dashboardMessage" class="alert" style="display: none;"></div>
@@ -273,7 +270,6 @@
             <div class="stats-table dashboard-filter-preview" id="dashboardFilterPreview" style="display: none;">
                 <div class="chart-card-header">
                     <h2>Matching Assets (<span id="dashboardMatchCount">0</span>)</h2>
-                    <span class="availability-pill" id="avail-dashboard-match"></span>
                 </div>
                 <div class="table-responsive">
                     <table>
@@ -368,7 +364,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>Assets by Category</h2>
-                        <span class="availability-pill" id="avail-category"></span>
                     </div>
                     <canvas id="categoryAllChart"></canvas>
                 </div>
@@ -376,7 +371,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>Asset Status Distribution</h2>
-                        <span class="availability-pill" id="avail-status"></span>
                     </div>
                     <canvas id="statusChart"></canvas>
                 </div>
@@ -384,7 +378,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>Assets by Department</h2>
-                        <span class="availability-pill" id="avail-department"></span>
                     </div>
                     <canvas id="departmentChart"></canvas>
                 </div>
@@ -395,7 +388,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>✅ Good / New Assets by Category</h2>
-                        <span class="availability-pill" id="avail-categorygood"></span>
                     </div>
                     <canvas id="categoryGoodChart"></canvas>
                 </div>
@@ -403,7 +395,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>⚠️ Faulty / Damaged by Category</h2>
-                        <span class="availability-pill" id="avail-categoryfaulty"></span>
                     </div>
                     <canvas id="categoryFaultyChart"></canvas>
                 </div>
@@ -411,7 +402,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>❌ Lost Assets by Category</h2>
-                        <span class="availability-pill" id="avail-categorylost"></span>
                     </div>
                     <canvas id="categoryLostChart"></canvas>
                 </div>
@@ -422,7 +412,6 @@
                 <div class="chart-card">
                     <div class="chart-card-header">
                         <h2>Assets by Location</h2>
-                        <span class="availability-pill" id="avail-location"></span>
                     </div>
                     <canvas id="locationChart"></canvas>
                 </div>
@@ -430,7 +419,6 @@
                 <div class="stats-table">
                     <div class="chart-card-header">
                         <h2>Status Breakdown</h2>
-                        <span class="availability-pill" id="avail-statustable"></span>
                     </div>
                     <table>
                         <thead>
@@ -448,7 +436,6 @@
                 <div class="stats-table">
                     <div class="chart-card-header">
                         <h2>Category Health Summary</h2>
-                        <span class="availability-pill" id="avail-healthtable"></span>
                     </div>
                     <table>
                         <thead>
@@ -471,7 +458,6 @@
                 <div class="stats-table">
                     <div class="chart-card-header">
                         <h2>Locations</h2>
-                        <span class="availability-pill" id="avail-locationstable"></span>
                     </div>
                     <table>
                         <thead>
@@ -489,7 +475,6 @@
                 <div class="stats-table">
                     <div class="chart-card-header">
                         <h2>Departments</h2>
-                        <span class="availability-pill" id="avail-departmentstable"></span>
                     </div>
                     <table>
                         <thead>
@@ -507,7 +492,6 @@
                 <div class="stats-table">
                     <div class="chart-card-header">
                         <h2>Assets by Category (Total)</h2>
-                        <span class="availability-pill" id="avail-categorytable"></span>
                     </div>
                     <table>
                         <thead>
@@ -1438,6 +1422,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261112-aptos-nav-users"></script>
+    <script src="script.js?v=20261112-dashboard-cleanup"></script>
 </body>
 </html>

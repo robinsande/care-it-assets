@@ -423,24 +423,6 @@ tbody tr:hover {
     font-size: 1.5rem;
 }
 
-.theme-toggle {
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    background: rgba(15, 23, 42, 0.18);
-    color: white;
-    border-radius: 18px;
-    padding: 7px 12px;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.86rem;
-    white-space: nowrap;
-    transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.theme-toggle:hover {
-    background: rgba(15, 23, 42, 0.3);
-    transform: translateY(-1px);
-}
-
 body.dark-mode .header-nav a {
     position: relative;
     transition: color 0.2s ease, text-shadow 0.2s ease;
@@ -468,8 +450,7 @@ body.dark-mode .header-nav a:hover::after {
     right: 0;
 }
 
-body.dark-mode .btn:hover,
-body.dark-mode .theme-toggle:hover {
+body.dark-mode .btn:hover {
     box-shadow: 0 0 10px rgba(255, 166, 0, 0.38), 0 6px 16px rgba(0, 0, 0, 0.25);
 }
 
@@ -996,39 +977,6 @@ body.dark-mode .table-responsive tbody tr:nth-child(even) {
     flex: 0 0 auto;
 }
 
-.availability-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-    color: #065f46;
-    font-weight: 700;
-    font-size: 0.8rem;
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.18);
-    white-space: nowrap;
-}
-
-.availability-pill::before {
-    content: '✓';
-    font-weight: 900;
-    color: #047857;
-}
-
-.availability-pill.zero {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #991b1b;
-    border-color: rgba(239, 68, 68, 0.25);
-    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.18);
-}
-
-.availability-pill.zero::before {
-    content: '—';
-    color: #991b1b;
-}
-
 .grid-3-charts {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
@@ -1199,33 +1147,6 @@ body.dark-mode .table-responsive tbody tr:nth-child(even) {
     font-size: 0.95rem;
     font-weight: 500;
     position: relative;
-}
-
-.dashboard-date {
-    background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
-    padding: 12px 20px;
-    border-radius: 14px;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255,255,255, 0.95) inset;
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    font-weight: 700;
-    color: #334155;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: relative;
-}
-
-.dashboard-date::before {
-    content: '📅';
-    font-size: 1.1rem;
-    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.1));
-}
-
-.dashboard-date span {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
 }
 
 /* ========================================
@@ -1992,12 +1913,6 @@ body.dark-mode .admin-form-close {
     color: #cbd5e1;
 }
 
-body.dark-mode .dashboard-date {
-    background: #111827;
-    border-color: #374151;
-    color: #e5e7eb;
-}
-
 body.dark-mode .detail-item,
 body.dark-mode .history-item {
     background: #111827;
@@ -2038,7 +1953,6 @@ body.dark-mode li,
 body.dark-mode .detail-label,
 body.dark-mode .history-date,
 body.dark-mode .no-data,
-body.dark-mode .availability-pill,
 body.dark-mode .role-label {
     color: #d1d5db;
 }
@@ -2098,10 +2012,7 @@ body.dark-mode #dashboardPage .dashboard-filter-preview th {
 
 body.dark-mode #dashboardPage .stat-content h3,
 body.dark-mode #dashboardPage .stat-value,
-body.dark-mode #dashboardPage .dashboard-title-group h1,
-body.dark-mode #dashboardPage .dashboard-date,
-body.dark-mode #dashboardPage .dashboard-date span,
-body.dark-mode #dashboardPage .availability-pill {
+body.dark-mode #dashboardPage .dashboard-title-group h1 {
     color: #f8fafc !important;
     -webkit-text-fill-color: #f8fafc;
 }
@@ -2173,14 +2084,6 @@ body:not(.dark-mode) #dashboardPage .filters select option {
 body:not(.dark-mode) #dashboardPage .filters input::placeholder {
     color: #64748b;
     opacity: 1;
-}
-
-body:not(.dark-mode) #dashboardPage .availability-pill {
-    color: #065f46 !important;
-}
-
-body:not(.dark-mode) #dashboardPage .availability-pill.zero {
-    color: #991b1b !important;
 }
 
 body:not(.dark-mode) #dashboardPage .stats-table tbody td.no-data,
