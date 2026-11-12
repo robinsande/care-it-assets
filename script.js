@@ -12,8 +12,10 @@ const API_RETRY_DELAYS = [250, 750];
 // ========================================
 let allAssets = [];
 let allInventoryItems = [];
+let allConsumables = [];
 let editingAssetId = null;
 let editingInventoryItemId = null;
+let editingConsumableId = null;
 let statusChart = null;
 let locationChart = null;
 let departmentChart = null;
@@ -326,6 +328,10 @@ function switchPage(pageId, options = {}) {
         renderHeader('headerInventory');
         renderInventoryHeaderActions();
         loadInventory();
+    } else if (pageId === 'utilitiesPage') {
+        renderHeader('headerUtilities');
+        renderConsumablesHeaderActions();
+        loadConsumableStock();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
         const adminDate = document.getElementById('adminPanelDate');
@@ -341,7 +347,7 @@ function initializeApp() {
     if (isAuthenticated()) {
         let savedPage = null;
         try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
-        const validPages = ['dashboardPage', 'assetsPage', 'inventoryPage', 'usersPage', 'reportsPage'];
+        const validPages = ['dashboardPage', 'assetsPage', 'inventoryPage', 'utilitiesPage', 'usersPage', 'reportsPage'];
         if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
             switchPage(savedPage);
         } else {
@@ -376,6 +382,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<nav class="header-nav">';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
+    headerHTML += '<a href="#" onclick="switchPage(\'utilitiesPage\'); return false;">Utilities</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'inventoryPage\'); return false;">Inventory</a>';
     headerHTML += adminLinkHTML;
     headerHTML += '</nav>';
@@ -541,6 +548,217 @@ async function deleteInventoryItem(itemId) {
         await loadInventory();
     } catch (error) {
         showMessage('inventoryMessage', 'Error: ' + error.message, 'error', 0);
+    }
+}
+
+function renderConsumablesHeaderActions() {
+    const actions = document.getElementById('utilitiesHeaderActions');
+    if (actions) {
+        actions.innerHTML = isAdmin()
+            ? '<button class="btn btn-primary" onclick="openConsumableModal()">Add Consumable</button>'
+            : '';
+    }
+}
+
+async function loadConsumableStock() {
+    const tbody = document.getElementById('consumablesTableBody');
+    const yearInput = document.getElementById('consumablesYear');
+    const monthInput = document.getElementById('consumablesMonth');
+    if (!tbody || !yearInput || !monthInput) return;
+
+    if (yearInput.dataset.initialized !== 'true') {
+        yearInput.value = String(new Date().getFullYear());
+        monthInput.value = String(new Date().getMonth() + 1);
+        yearInput.dataset.initialized = 'true';
+    }
+
+    const year = Number(yearInput.value);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        showMessage('utilitiesMessage', 'Enter a year between 2000 and 2100.', 'error', 0);
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center">Loading stock...</td></tr>';
+    try {
+        const items = await apiCall('/consumables?year=' + encodeURIComponent(year), 'GET');
+        if (!items) throw new Error('Unable to load consumable stock');
+        allConsumables = items;
+        renderConsumablesTable();
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">Unable to load consumable stock</td></tr>';
+        showMessage('utilitiesMessage', 'Error loading stock: ' + error.message, 'error', 0);
+    }
+}
+
+function getConsumablesPeriod() {
+    return {
+        year: Number(document.getElementById('consumablesYear').value),
+        month: Number(document.getElementById('consumablesMonth').value),
+    };
+}
+
+function getConsumablePeriodKey(year, month) {
+    return year + '-' + String(month).padStart(2, '0');
+}
+
+function renderConsumablesTable() {
+    const tbody = document.getElementById('consumablesTableBody');
+    if (!tbody) return;
+    const { year, month } = getConsumablesPeriod();
+    const selectedPeriod = getConsumablePeriodKey(year, month);
+    const monthLabel = document.getElementById('consumablesMonth').selectedOptions[0].text;
+    const search = document.getElementById('consumablesSearch').value.trim().toLowerCase();
+    const category = document.getElementById('consumablesCategoryFilter').value;
+    let receivedTotal = 0;
+    let issuedTotal = 0;
+
+    allConsumables.forEach(item => {
+        const movement = (item.movements || {})[selectedPeriod] || {};
+        receivedTotal += Number(movement.received) || 0;
+        issuedTotal += Number(movement.issued) || 0;
+    });
+
+    document.getElementById('consumableItemCount').textContent = allConsumables.length;
+    document.getElementById('consumableReceivedTotal').textContent = receivedTotal.toLocaleString();
+    document.getElementById('consumableIssuedTotal').textContent = issuedTotal.toLocaleString();
+
+    const filteredItems = allConsumables.filter(item => {
+        const matchesCategory = !category || item.category === category;
+        const searchableText = [item.itemName, item.itemCode, item.category, item.unit]
+            .join(' ')
+            .toLowerCase();
+        return matchesCategory && searchableText.includes(search);
+    });
+
+    if (!filteredItems.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No consumables match your filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filteredItems.map(item => {
+        const itemId = escapeInventoryText(item._id);
+        const movements = item.movements || {};
+        const currentMovement = movements[selectedPeriod] || {};
+        const received = Number(currentMovement.received) || 0;
+        const issued = Number(currentMovement.issued) || 0;
+        const movementBeforeSelectedPeriod = Object.entries(movements)
+            .filter(([period]) => period <= selectedPeriod)
+            .reduce((totals, [, movement]) => ({
+                received: totals.received + (Number(movement.received) || 0),
+                issued: totals.issued + (Number(movement.issued) || 0),
+            }), { received: 0, issued: 0 });
+        const closingBalance = (Number(item.openingBalance) || 0) +
+            movementBeforeSelectedPeriod.received - movementBeforeSelectedPeriod.issued;
+        const entryFields = canAddRecords()
+            ? '<div class="consumable-entry-fields">' +
+                '<input id="consumableReceived-' + itemId + '" type="number" min="0" step="1" value="0" aria-label="Additional units received for ' + escapeInventoryText(item.itemName) + '">' +
+                '<input id="consumableIssued-' + itemId + '" type="number" min="0" step="1" value="0" aria-label="Additional units issued for ' + escapeInventoryText(item.itemName) + '">' +
+                '<button class="btn btn-small btn-primary" onclick="recordConsumableMovement(\'' + itemId + '\')">Save</button>' +
+            '</div>'
+            : 'View only';
+        const actions = isAdmin()
+            ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + itemId + '\')">Edit</button>'
+            : '-';
+        return '<tr>' +
+            '<td>' + escapeInventoryText(item.itemName) + '</td>' +
+            '<td>' + escapeInventoryText(item.itemCode || '-') + '</td>' +
+            '<td>' + escapeInventoryText(item.category) + '</td>' +
+            '<td>' + escapeInventoryText(item.unit || '-') + '</td>' +
+            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td>' + received.toLocaleString() + '</td>' +
+            '<td>' + issued.toLocaleString() + '</td>' +
+            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td>' + escapeInventoryText(item.condition || '-') + '</td>' +
+            '<td>' + entryFields + '</td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+
+    document.querySelectorAll('.consumable-entry-fields').forEach(fields => {
+        fields.setAttribute('aria-label', 'Record stock for ' + monthLabel + ' ' + year);
+    });
+}
+
+function openConsumableModal(itemId = null) {
+    if (!isAdmin()) {
+        showMessage('utilitiesMessage', 'Only admins can manage the consumable catalogue.', 'error');
+        return;
+    }
+    document.getElementById('consumableForm').reset();
+    editingConsumableId = itemId;
+    const item = itemId ? allConsumables.find(entry => entry._id === itemId) : null;
+    document.getElementById('consumableModalTitle').textContent = item ? 'Edit Consumable' : 'Add Consumable';
+    document.getElementById('consumableItemName').value = item ? item.itemName : '';
+    document.getElementById('consumableItemCode').value = item ? item.itemCode || '' : '';
+    document.getElementById('consumableCategory').value = item ? item.category : 'Stationery';
+    document.getElementById('consumableUnit').value = item ? item.unit || '' : '';
+    document.getElementById('consumableOpeningBalance').value = item ? item.openingBalance : 0;
+    document.getElementById('consumableCondition').value = item ? item.condition || '' : '';
+    document.getElementById('consumableModal').style.display = 'flex';
+}
+
+function closeConsumableModal() {
+    document.getElementById('consumableModal').style.display = 'none';
+    editingConsumableId = null;
+}
+
+async function submitConsumableForm(event) {
+    event.preventDefault();
+    if (!isAdmin()) {
+        showMessage('utilitiesMessage', 'Only admins can manage the consumable catalogue.', 'error');
+        return;
+    }
+    const payload = {
+        itemName: document.getElementById('consumableItemName').value.trim(),
+        itemCode: document.getElementById('consumableItemCode').value.trim(),
+        category: document.getElementById('consumableCategory').value,
+        unit: document.getElementById('consumableUnit').value.trim(),
+        openingBalance: Number(document.getElementById('consumableOpeningBalance').value),
+        condition: document.getElementById('consumableCondition').value.trim(),
+    };
+    const wasEditing = Boolean(editingConsumableId);
+    try {
+        const result = wasEditing
+            ? await apiCall('/consumables/' + editingConsumableId, 'PUT', payload)
+            : await apiCall('/consumables', 'POST', payload);
+        if (!result) throw new Error('Unable to save consumable item');
+        closeConsumableModal();
+        showMessage('utilitiesMessage', wasEditing ? 'Consumable item updated.' : 'Consumable item added.', 'success');
+        await loadConsumableStock();
+    } catch (error) {
+        showMessage('utilitiesMessage', 'Error saving item: ' + error.message, 'error', 0);
+    }
+}
+
+async function recordConsumableMovement(itemId) {
+    if (!canAddRecords()) {
+        showMessage('utilitiesMessage', 'You do not have permission to enter stock movements.', 'error');
+        return;
+    }
+    const receivedInput = document.getElementById('consumableReceived-' + itemId);
+    const issuedInput = document.getElementById('consumableIssued-' + itemId);
+    const { year, month } = getConsumablesPeriod();
+    const received = Number(receivedInput.value);
+    const issued = Number(issuedInput.value);
+    if (!Number.isFinite(received) || received < 0 || !Number.isFinite(issued) || issued < 0 ||
+        (received === 0 && issued === 0)) {
+        showMessage('utilitiesMessage', 'Enter a positive received or issued quantity before saving.', 'error');
+        return;
+    }
+
+    try {
+        const result = await apiCall('/consumables/' + itemId + '/stock', 'POST', {
+            year,
+            month,
+            received,
+            issued,
+        });
+        if (!result) throw new Error('Unable to record stock movement');
+        showMessage('utilitiesMessage', 'Stock movement recorded for ' +
+            document.getElementById('consumablesMonth').selectedOptions[0].text + ' ' + year + '.', 'success');
+        await loadConsumableStock();
+    } catch (error) {
+        showMessage('utilitiesMessage', 'Error recording stock: ' + error.message, 'error', 0);
     }
 }
 

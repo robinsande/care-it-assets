@@ -853,6 +853,85 @@
         </div>
     </div>
 
+    <div id="utilitiesPage" class="page" style="display: none;">
+        <header class="header" id="headerUtilities"></header>
+        <div class="container">
+            <div class="page-header">
+                <div>
+                    <h1>Consumable Stock Levels</h1>
+                    <p>Track opening balances, monthly receipts, issues, and closing stock.</p>
+                </div>
+                <div class="header-actions" id="utilitiesHeaderActions"></div>
+            </div>
+            <div id="utilitiesMessage" class="alert" style="display: none;"></div>
+
+            <div class="filters consumables-filters">
+                <div class="search-box">
+                    <input id="consumablesSearch" type="search" placeholder="Search consumables..." oninput="renderConsumablesTable()">
+                </div>
+                <select id="consumablesCategoryFilter" onchange="renderConsumablesTable()">
+                    <option value="">All categories</option>
+                    <option value="Stationery">Stationery</option>
+                    <option value="Detergents / Toiletries">Detergents / Toiletries</option>
+                    <option value="Kitchen Utilities">Kitchen Utilities</option>
+                </select>
+                <select id="consumablesMonth" onchange="renderConsumablesTable()">
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+                <input id="consumablesYear" type="number" min="2000" max="2100" value="2026" aria-label="Stock year" onchange="loadConsumableStock()">
+            </div>
+
+            <div class="grid grid-3 consumables-summary">
+                <div class="stat-card total">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-content"><h3>Items</h3><p class="stat-value" id="consumableItemCount">0</p></div>
+                </div>
+                <div class="stat-card available">
+                    <div class="stat-icon">↓</div>
+                    <div class="stat-content"><h3>Received this month</h3><p class="stat-value" id="consumableReceivedTotal">0</p></div>
+                </div>
+                <div class="stat-card assigned">
+                    <div class="stat-icon">↑</div>
+                    <div class="stat-content"><h3>Issued this month</h3><p class="stat-value" id="consumableIssuedTotal">0</p></div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item description</th>
+                            <th>Item code</th>
+                            <th>Category</th>
+                            <th>Unit</th>
+                            <th>Opening balance</th>
+                            <th>Received</th>
+                            <th>Issued</th>
+                            <th>Closing balance</th>
+                            <th>Condition</th>
+                            <th>Record movement</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consumablesTableBody">
+                        <tr><td colspan="11" class="text-center">Loading stock...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div id="inventoryModal" class="modal-overlay" style="display: none;">
         <div class="modal">
             <div class="modal-header">
@@ -901,6 +980,51 @@
                 <div style="display: flex; gap: 10px; margin-top: 16px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Save Item</button>
                     <button type="button" class="btn btn-secondary" onclick="closeInventoryModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="consumableModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="consumableModalTitle">Add Consumable</h2>
+                <button class="close-btn" type="button" onclick="closeConsumableModal()">✕</button>
+            </div>
+            <form id="consumableForm" onsubmit="submitConsumableForm(event)">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label for="consumableItemName">Item description *</label>
+                        <input id="consumableItemName" type="text" required maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="consumableItemCode">Item code</label>
+                        <input id="consumableItemCode" type="text" maxlength="40">
+                    </div>
+                    <div class="form-group">
+                        <label for="consumableCategory">Category *</label>
+                        <select id="consumableCategory" required>
+                            <option value="Stationery">Stationery</option>
+                            <option value="Detergents / Toiletries">Detergents / Toiletries</option>
+                            <option value="Kitchen Utilities">Kitchen Utilities</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="consumableUnit">Unit</label>
+                        <input id="consumableUnit" type="text" maxlength="30" placeholder="e.g. packets">
+                    </div>
+                    <div class="form-group">
+                        <label for="consumableOpeningBalance">Opening balance *</label>
+                        <input id="consumableOpeningBalance" type="number" min="0" step="1" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="consumableCondition">Condition</label>
+                        <input id="consumableCondition" type="text" maxlength="80">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 16px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Item</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeConsumableModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
@@ -1183,6 +1307,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261002-inventory-permissions"></script>
+    <script src="script.js?v=20261112-consumable-stock"></script>
 </body>
 </html>
