@@ -241,6 +241,10 @@ function isAdmin() {
     return ['admin', 'superadmin'].includes(getUserRole());
 }
 
+function canAddRecords() {
+    return ['user', 'admin', 'superadmin'].includes(getUserRole());
+}
+
 function isSuperAdmin() {
     return getUserRole() === 'superadmin';
 }
