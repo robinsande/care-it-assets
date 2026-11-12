@@ -312,8 +312,6 @@ function switchPage(pageId, options = {}) {
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
         updateUserCreationControls();
-        const adminDate = document.getElementById('adminPanelDate');
-        if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         loadUsers();
     } else if (pageId === 'reportsPage') {
         renderHeader('headerReports');

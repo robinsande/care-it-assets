@@ -1157,17 +1157,6 @@ body.dark-mode .theme-toggle:hover {
     font-weight: 500;
 }
 
-.admin-landing-date {
-    color: #475569;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.admin-landing-date::before {
-    content: '📅';
-    margin-right: 8px;
-}
-
 .admin-quick-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1853,7 +1842,6 @@ body.dark-mode .dashboard-title-group h1 {
 
 body.dark-mode .dashboard-title-group p,
 body.dark-mode .admin-landing p,
-body.dark-mode .admin-landing-date,
 body.dark-mode .admin-summary-card small {
     color: #cbd5e1;
 }
