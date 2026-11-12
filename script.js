@@ -141,6 +141,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             localStorage.removeItem('userRole');
+            localStorage.removeItem('careit_active_page');
             switchPage('userLoginPage');
             return null;
         }
@@ -301,7 +302,7 @@ function switchPage(pageId, options = {}) {
         }
     }
 
-    if (!options.skipSave && pageId !== 'userLoginPage' && pageId !== 'userRegisterPage') {
+    if (!options.skipSave && pageId !== 'userLoginPage') {
         try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
     }
 
@@ -320,6 +321,7 @@ function switchPage(pageId, options = {}) {
         loadPurchaseItems();
     } else if (pageId === 'usersPage') {
         renderHeader('headerUsers');
+        updateUserCreationControls();
         const adminDate = document.getElementById('adminPanelDate');
         if (adminDate) adminDate.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         loadUsers();
@@ -334,8 +336,11 @@ function initializeApp() {
         page.style.display = 'none';
     });
     if (isAuthenticated()) {
-        switchPage('workspacePage');
+        const savedPage = localStorage.getItem('careit_active_page');
+        const restorablePages = ['workspacePage', 'dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
+        switchPage(restorablePages.includes(savedPage) ? savedPage : 'workspacePage');
     } else {
+        localStorage.removeItem('careit_active_page');
         switchPage('userLoginPage', { skipSave: true });
     }
 }
@@ -377,7 +382,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<span class="role-badge">' + roleDisplay + '</span>';
     headerHTML += '</div>';
     headerHTML += '<nav class="header-nav">';
-    headerHTML += '<a href="#" onclick="switchPage(\'workspacePage\'); return false;">Workspaces</a>';
+    headerHTML += '<a href="#" onclick="switchPage(\'workspacePage\'); return false;">Switch workspace</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'purchaseItemsPage\'); return false;">Purchase Items</a>';
@@ -391,7 +396,7 @@ function renderHeader(headerId = 'header') {
     headerHTML += '<button class="theme-toggle" type="button" onclick="toggleDarkMode()" aria-label="Toggle dark mode" aria-pressed="' + isDarkMode() + '">' + (isDarkMode() ? '☀ Light' : '◐ Dark') + '</button>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button>';
     headerHTML += '</div>';
-    headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu()">Menu</button>';
+    headerHTML += '<button class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle navigation">Menu</button>';
     headerHTML += '</div>';
 
     header.innerHTML = headerHTML;
@@ -455,8 +460,8 @@ document.addEventListener('keydown', event => {
     }
 });
 
-function toggleMobileMenu() {
-    const nav = document.querySelector('.header-nav');
+function toggleMobileMenu(button) {
+    const nav = button.closest('.header-container')?.querySelector('.header-nav');
     if (nav) {
         nav.classList.toggle('active');
     }
@@ -671,32 +676,6 @@ async function handleChangePassword(event) {
         showMessage('changePasswordMessage', error.message || 'Error changing password', 'error', 0);
         btn.disabled = false;
         btn.textContent = 'Change Password';
-    }
-}
-
-async function handleRegister(event) {
-    event.preventDefault();
-
-    const name = document.getElementById('registerName').value;
-    const email = document.getElementById('registerEmail').value;
-    const password = document.getElementById('registerPassword').value;
-    const registerBtn = document.getElementById('registerBtn');
-
-    try {
-        registerBtn.disabled = true;
-        registerBtn.textContent = 'Creating account...';
-
-        await apiCall('/auth/register', 'POST', { name, email, password });
-
-        showMessage('registerMessage', 'Account created! Redirecting to login...', 'success', 2000);
-
-        setTimeout(() => {
-            switchPage('userLoginPage');
-        }, 2000);
-    } catch (error) {
-        showMessage('registerMessage', error.message || 'Registration failed', 'error', 0);
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Create Account';
     }
 }
 
@@ -1556,6 +1535,14 @@ function updateDashboardChartTheme() {
 // ========================================
 // USERS / ADMIN FUNCTIONS
 // ========================================
+function updateUserCreationControls() {
+    const isSuperAdminUser = isSuperAdmin();
+    ['createUserQuickAction', 'createUserHeaderAction'].forEach(id => {
+        const action = document.getElementById(id);
+        if (action) action.style.display = isSuperAdminUser ? '' : 'none';
+    });
+}
+
 function focusAdminSection(elementId) {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -1651,6 +1638,11 @@ function handleUserAction(select, userId) {
 }
 
 function openUserCreateModal() {
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only super admins can create users', 'error');
+        return;
+    }
+
     const form = document.getElementById('createUserForm');
     if (!form) return;
     const roleSelect = document.getElementById('newUserRole');
@@ -1668,8 +1660,8 @@ function openUserCreateModal() {
 
 async function submitCreateUser(event) {
     event.preventDefault();
-    if (!isAdmin()) {
-        showMessage('usersMessage', 'Only admins can manage users', 'error');
+    if (!isSuperAdmin()) {
+        showMessage('usersMessage', 'Only super admins can create users', 'error');
         return;
     }
 
