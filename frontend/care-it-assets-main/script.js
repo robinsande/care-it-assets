@@ -284,6 +284,10 @@ function downloadFile(blob, filename) {
 // PAGE NAVIGATION
 // ========================================
 function switchPage(pageId, options = {}) {
+    if (pageId === 'workspacePage' && !isAuthenticated()) {
+        pageId = 'userLoginPage';
+    }
+
     perfLog('route:mount', { pageId });
     document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
@@ -306,7 +310,9 @@ function switchPage(pageId, options = {}) {
         try { localStorage.setItem('careit_active_page', pageId); } catch (e) {}
     }
 
-    if (pageId === 'dashboardPage') {
+    if (pageId === 'workspacePage') {
+        renderWorkspaceAccount();
+    } else if (pageId === 'dashboardPage') {
         renderHeader('header');
         loadDashboardData();
     } else if (pageId === 'assetsPage') {
@@ -334,17 +340,25 @@ function initializeApp() {
         page.style.display = 'none';
     });
     if (isAuthenticated()) {
-        let savedPage = null;
-        try { savedPage = localStorage.getItem('careit_active_page'); } catch (e) {}
-        const validPages = ['dashboardPage', 'assetsPage', 'purchaseItemsPage', 'usersPage', 'reportsPage'];
-        if (savedPage && validPages.includes(savedPage) && document.getElementById(savedPage)) {
-            switchPage(savedPage);
-        } else {
-            switchPage('dashboardPage');
-        }
+        switchPage('workspacePage');
     } else {
         switchPage('userLoginPage', { skipSave: true });
     }
+}
+
+function renderWorkspaceAccount() {
+    const user = getUser();
+    const userLabel = document.getElementById('workspaceUser');
+    const logoutButton = document.getElementById('workspaceLogoutButton');
+
+    if (userLabel) userLabel.textContent = user ? user.email || '' : '';
+    if (logoutButton) logoutButton.style.display = '';
+}
+
+function openWorkspace(workspaceId) {
+    if (workspaceId !== 'it-assets') return;
+
+    switchPage(isAuthenticated() ? 'dashboardPage' : 'userLoginPage');
 }
 
 // ========================================
@@ -365,10 +379,11 @@ function renderHeader(headerId = 'header') {
 
     let headerHTML = '<div class="header-container">';
     headerHTML += '<div class="header-logo">';
-    headerHTML += '<h1>CARE IT Assets</h1>';
+    headerHTML += '<h1>Assets</h1>';
     headerHTML += '<span class="role-badge">' + roleDisplay + '</span>';
     headerHTML += '</div>';
     headerHTML += '<nav class="header-nav">';
+    headerHTML += '<a href="#" onclick="switchPage(\'workspacePage\'); return false;">Workspaces</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'dashboardPage\'); return false;">Dashboard</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'assetsPage\'); return false;">Assets</a>';
     headerHTML += '<a href="#" onclick="switchPage(\'purchaseItemsPage\'); return false;">Purchase Items</a>';

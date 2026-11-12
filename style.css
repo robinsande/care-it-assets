@@ -2187,3 +2187,235 @@ body:not(.dark-mode) #dashboardPage .stats-table tbody td.no-data,
 body:not(.dark-mode) #dashboardPage .dashboard-filter-preview .no-data {
     color: #64748b !important;
 }
+
+.workspace-page {
+    min-height: 100vh;
+    background: #f3f5f8;
+    color: #0f172a;
+}
+
+.workspace-topbar {
+    min-height: 72px;
+    padding: 14px max(24px, calc((100vw - 1120px) / 2));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.workspace-brand {
+    color: #10233f;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    text-decoration: none;
+}
+
+.workspace-account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.workspace-user {
+    color: #475569;
+    font-size: 0.9rem;
+}
+
+.workspace-content {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    padding: 56px 24px 72px;
+}
+
+.workspace-heading {
+    margin-bottom: 32px;
+}
+
+.workspace-eyebrow {
+    margin-bottom: 10px;
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+.workspace-heading h1 {
+    margin-bottom: 8px;
+    color: #10233f;
+    font-size: clamp(2rem, 4vw, 2.5rem);
+    letter-spacing: -0.04em;
+}
+
+.workspace-heading > p:last-child {
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+}
+
+.workspace-card {
+    width: 100%;
+    min-height: 264px;
+    padding: 30px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    border: 1px solid #d8e0ea;
+    border-radius: 16px;
+    background: #fff;
+    color: #10233f;
+    text-align: left;
+    font-family: inherit;
+}
+
+button.workspace-card {
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+button.workspace-card:hover {
+    transform: translateY(-3px);
+    border-color: #b7c8df;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
+}
+
+button.workspace-card:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 3px;
+}
+
+.workspace-icon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 20px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.workspace-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.workspace-card-fleet .workspace-icon {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.workspace-card-buildings .workspace-icon {
+    background: #ccfbf1;
+    color: #0f766e;
+}
+
+.workspace-card-furniture .workspace-icon {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.workspace-card-electronics .workspace-icon {
+    background: #ffe4e6;
+    color: #be123c;
+}
+
+.workspace-card-title {
+    margin-bottom: 8px;
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.workspace-card-description {
+    color: #475569;
+    font-size: 0.98rem;
+    line-height: 1.55;
+}
+
+.workspace-card-action {
+    margin-top: auto;
+    padding-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #1d4ed8;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.workspace-card-fleet .workspace-card-action { color: #b45309; }
+.workspace-card-buildings .workspace-card-action { color: #0f766e; }
+.workspace-card-furniture .workspace-card-action { color: #6d28d9; }
+.workspace-card-electronics .workspace-card-action { color: #be123c; }
+
+body.dark-mode .workspace-page {
+    background: #111827;
+    color: #f8fafc;
+}
+
+body.dark-mode .workspace-topbar,
+body.dark-mode .workspace-card {
+    background: #1f2937;
+    border-color: #475569;
+    color: #f8fafc;
+}
+
+body.dark-mode .workspace-brand,
+body.dark-mode .workspace-heading h1,
+body.dark-mode .workspace-card-title {
+    color: #f8fafc;
+}
+
+body.dark-mode .workspace-user,
+body.dark-mode .workspace-heading > p:last-child,
+body.dark-mode .workspace-card-description {
+    color: #cbd5e1;
+}
+
+@media (max-width: 850px) {
+    .workspace-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    .workspace-topbar {
+        min-height: 64px;
+        padding: 12px 18px;
+    }
+
+    .workspace-user {
+        max-width: 45vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .workspace-content {
+        padding: 36px 18px 48px;
+    }
+
+    .workspace-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .workspace-card {
+        min-height: 230px;
+        padding: 24px;
+    }
+}
