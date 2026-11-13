@@ -529,7 +529,7 @@ async function loadConsumableStock() {
 
     tbody.innerHTML = '<tr><td colspan="9" class="text-center">Loading stock...</td></tr>';
     if (entriesBody) entriesBody.innerHTML = '<tr><td colspan="8" class="text-center">Loading entries...</td></tr>';
-    if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="7" class="text-center">Loading catalogue...</td></tr>';
+    if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="6" class="text-center">Loading catalogue...</td></tr>';
     try {
         const items = await apiCall('/consumables?year=' + encodeURIComponent(year), 'GET');
         if (!items) throw new Error('Unable to load consumable stock');
@@ -538,7 +538,7 @@ async function loadConsumableStock() {
     } catch (error) {
         tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">Unable to load consumable stock</td></tr>';
         if (entriesBody) entriesBody.innerHTML = '<tr><td colspan="8" class="text-center no-data">Unable to load monthly entries</td></tr>';
-        if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="7" class="text-center no-data">Unable to load catalogue</td></tr>';
+        if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="6" class="text-center no-data">Unable to load catalogue</td></tr>';
         showMessage('utilitiesMessage', 'Error loading stock: ' + error.message, 'error', 0);
     }
 }
@@ -605,15 +605,15 @@ function renderConsumablesTable() {
             ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
             : '-';
         return '<tr>' +
-            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
-            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
-            '<td>' + escapeConsumableText(item.category) + '</td>' +
-            '<td>' + escapeConsumableText(item.unit || '-') + '</td>' +
-            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
-            '<td>' + received.toLocaleString() + '</td>' +
-            '<td>' + issued.toLocaleString() + '</td>' +
-            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
-            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '<td data-label="Item description">' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td data-label="Item code">' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td data-label="Category">' + escapeConsumableText(item.category) + '</td>' +
+            '<td data-label="Unit">' + escapeConsumableText(item.unit || '-') + '</td>' +
+            '<td data-label="Opening balance">' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td data-label="Received">' + received.toLocaleString() + '</td>' +
+            '<td data-label="Issued">' + issued.toLocaleString() + '</td>' +
+            '<td data-label="Closing balance"><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td data-label="Actions"><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
     }).join('');
 }
@@ -660,14 +660,14 @@ function renderMonthlyEntriesTable() {
                 '<button class="btn btn-small btn-primary" onclick="recordConsumableMovement(\'' + id + '\')">Save</button></div>'
             : 'View only';
         return '<tr>' +
-            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
-            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
-            '<td>' + escapeConsumableText(item.category) + '</td>' +
-            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
-            '<td>' + received.toLocaleString() + '</td>' +
-            '<td>' + issued.toLocaleString() + '</td>' +
-            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
-            '<td>' + entryFields + '</td>' +
+            '<td data-label="Item description">' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td data-label="Item code">' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td data-label="Category">' + escapeConsumableText(item.category) + '</td>' +
+            '<td data-label="Opening balance">' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td data-label="Received">' + received.toLocaleString() + '</td>' +
+            '<td data-label="Issued">' + issued.toLocaleString() + '</td>' +
+            '<td data-label="Closing balance"><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td data-label="Record movement">' + entryFields + '</td>' +
             '</tr>';
     }).join('');
 }
@@ -677,7 +677,7 @@ function renderConsumablesCatalogue() {
     if (!tbody) return;
     const items = getFilteredConsumables();
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center no-data">No consumables match your filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center no-data">No consumables match your filters</td></tr>';
         return;
     }
 
@@ -687,13 +687,12 @@ function renderConsumablesCatalogue() {
             ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
             : '-';
         return '<tr>' +
-            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
-            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
-            '<td>' + escapeConsumableText(item.category) + '</td>' +
-            '<td>' + escapeConsumableText(item.unit || '-') + '</td>' +
-            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
-            '<td>' + escapeConsumableText(item.condition || '-') + '</td>' +
-            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '<td data-label="Item description">' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td data-label="Item code">' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td data-label="Category">' + escapeConsumableText(item.category) + '</td>' +
+            '<td data-label="Unit">' + escapeConsumableText(item.unit || '-') + '</td>' +
+            '<td data-label="Opening balance">' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td data-label="Actions"><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
     }).join('');
 }
@@ -1503,7 +1502,7 @@ function applyDashboardFilters() {
     if (matchCount) matchCount.textContent = matches.length;
     if (matchesBody) {
         if (!matches.length) {
-            matchesBody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No matching assets</td></tr>';
+            matchesBody.innerHTML = '<tr><td colspan="8" class="text-center no-data">No matching assets</td></tr>';
         } else {
             matchesBody.innerHTML = matches.slice(0, 50).map(a => {
                 return '<tr>' +
@@ -1515,9 +1514,8 @@ function applyDashboardFilters() {
                     '<td>' + (a.department || '-') + '</td>' +
                     '<td>' + (a.assignedTo || '-') + '</td>' +
                     '<td>' + (a.returnInfo && a.returnInfo.returnedBy || '-') + '</td>' +
-                    '<td>' + (a.condition || '-') + '</td>' +
                     '</tr>';
-            }).join('') + (matches.length > 50 ? '<tr><td colspan="9" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
+            }).join('') + (matches.length > 50 ? '<tr><td colspan="8" class="text-center" style="color:#475569">...and ' + (matches.length - 50) + ' more — switch to the Assets tab to see all results</td></tr>' : '');
         }
     }
 }
@@ -2100,11 +2098,11 @@ function drillDownToAssets(filters = {}) {
 async function loadAssets() {
     const tbody = document.getElementById('assetsTableBody');
     const assetTableBody = document.getElementById('assetTableBody') || tbody;
-    if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">Loading...</td></tr>';
+    if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
     try {
         allAssets = await apiCall('/assets', 'GET');
         if (!allAssets || allAssets.length === 0) {
-            if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center">No assets found</td></tr>';
+            if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="10" class="text-center">No assets found</td></tr>';
         } else {
             renderAssetsTable(allAssets);
         }
@@ -2151,7 +2149,7 @@ async function loadAssets() {
         }
     } catch (error) {
         showMessage('assetMessage', 'Error loading assets: ' + error.message, 'error', 0);
-        if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="14" class="text-center" style="color:#dc2626">Failed to load assets: ' + error.message + '</td></tr>';
+        if (assetTableBody) assetTableBody.innerHTML = '<tr><td colspan="10" class="text-center" style="color:#dc2626">Failed to load assets: ' + error.message + '</td></tr>';
     }
 }
 
@@ -2173,7 +2171,7 @@ function renderAssetsTable(assets) {
     const userRole = getUserRole();
     
     if (assets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center no-data">No assets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">No assets found</td></tr>';
         updateBulkActionsBar();
         return;
     }
@@ -2187,7 +2185,7 @@ function renderAssetsTable(assets) {
         const returnedByCell = asset.returnInfo && asset.returnInfo.returnedBy
             ? asset.returnInfo.returnedBy + (asset.returnInfo.returnDate ? ' <span style="color:#64748b;font-size:.8em;">(' + formatDate(asset.returnInfo.returnDate) + ')</span>' : '')
             : '-';
-        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td>' + (asset.condition || 'Good') + '</td><td><div class="action-buttons"><select class="asset-action-select" data-asset-id="' + asset._id + '" aria-label="Asset actions" onchange="handleAssetAction(this, this.dataset.assetId)">' + actionOptions + '</select></div></td></tr>';
+        return '<tr><td><input type="checkbox" class="asset-checkbox" data-id="' + asset._id + '" ' + isChecked + ' onchange="toggleRowSelection(\'' + asset._id + '\', this)"></td><td><strong>' + asset.assetTag + '</strong></td><td>' + asset.category + '</td><td>' + (asset.serialNumber || '-') + '</td><td><span class="badge ' + getStatusBadgeClass(asset.status) + '">' + asset.status + '</span></td><td>' + (asset.assignedTo || '-') + '</td><td>' + returnedByCell + '</td><td>' + (asset.location || '-') + '</td><td>' + (asset.department || '-') + '</td><td><div class="action-buttons"><select class="asset-action-select" data-asset-id="' + asset._id + '" aria-label="Asset actions" onchange="handleAssetAction(this, this.dataset.assetId)">' + actionOptions + '</select></div></td></tr>';
     }).join('');
     updateBulkActionsBar();
 }
@@ -2843,7 +2841,7 @@ function formatDateDDMM(dateString) {
 async function loadPurchaseItems() {
     const tbody = document.getElementById('purchaseTableBody');
     const purchaseTableBodyEl = document.getElementById('purchaseItemsTableBody') || tbody;
-    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">Loading...</td></tr>';
+    if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="12" class="text-center">Loading...</td></tr>';
     try {
         const searchEl = document.getElementById('purchaseSearchInput');
         const categoryEl = document.getElementById('purchaseCategoryFilter');
@@ -2860,13 +2858,13 @@ async function loadPurchaseItems() {
         const endpoint = '/purchase-items' + (qs ? '?' + qs : '');
         allPurchaseItems = await apiCall(endpoint, 'GET');
         if (!allPurchaseItems || allPurchaseItems.length === 0) {
-            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center">No purchase items found</td></tr>';
+            if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="12" class="text-center">No purchase items found</td></tr>';
         } else {
             renderPurchaseRows(allPurchaseItems);
         }
     } catch (error) {
         showMessage('purchaseMessage', 'Error loading purchase items: ' + error.message, 'error', 0);
-        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
+        if (purchaseTableBodyEl) purchaseTableBodyEl.innerHTML = '<tr><td colspan="12" class="text-center" style="color:#dc2626">Failed to load purchase items: ' + error.message + '</td></tr>';
     }
 }
 
@@ -2933,14 +2931,13 @@ function renderPurchaseRows(items) {
     const isAdminRole = isAdmin();
 
     if (!items || items.length === 0) {
-        purchaseTableBodyEl.innerHTML = '<tr><td colspan="13" class="text-center no-data">No purchase items found</td></tr>';
+        purchaseTableBodyEl.innerHTML = '<tr><td colspan="12" class="text-center no-data">No purchase items found</td></tr>';
         return;
     }
 
     purchaseTableBodyEl.innerHTML = items.map(item => {
         const statusBadge = '<span class="badge ' + getStatusBadgeClass(item.status) + '">' + (item.status || '-') + '</span>';
         const locationVal = item.location || '-';
-        const conditionVal = item.condition || '-';
         const brandModel = [item.brand, item.model].filter(Boolean).join(' ') || '-';
 
         let actions = '';
@@ -2964,7 +2961,6 @@ function renderPurchaseRows(items) {
             '<td>' + (item.invoiceNumber || '-') + '</td>' +
             '<td>' + statusBadge + '</td>' +
             '<td>' + locationVal + '</td>' +
-            '<td>' + conditionVal + '</td>' +
             '<td><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
     }).join('');
