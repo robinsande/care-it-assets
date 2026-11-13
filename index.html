@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assets</title>
     <link rel="icon" type="image/svg+xml" href="care-logo.svg?v=20261111-main">
-    <link rel="stylesheet" href="style.css?v=20261112-utilities-nav-accessible">
+    <link rel="stylesheet" href="style.css?v=20261113-utilities-pages">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -65,50 +65,112 @@
 
     <div id="utilitiesPage" class="page" style="display: none;">
         <header class="header" id="headerUtilities"></header>
-        <div class="container">
-            <div class="page-header">
-                <div>
-                    <h1 id="utilitiesStockHeading">Consumable Stock Levels</h1>
-                    <p>Track opening balances, monthly receipts, issues, and closing stock.</p>
+        <div class="utilities-shell">
+            <aside class="utilities-sidebar" aria-label="Utilities workspace">
+                <p class="utilities-sidebar-label">Inventory</p>
+                <nav class="utilities-sidebar-nav" id="utilitiesNavigation" aria-label="Utilities navigation">
+                    <a href="#utilities/stock-levels" data-utilities-view-link="stock-levels" aria-current="page" onclick="switchUtilitiesPage('stock-levels')">
+                        <span class="utilities-nav-icon" aria-hidden="true">▦</span>Stock Levels
+                    </a>
+                    <a href="#utilities/monthly-entries" data-utilities-view-link="monthly-entries" onclick="switchUtilitiesPage('monthly-entries')">
+                        <span class="utilities-nav-icon" aria-hidden="true">↕</span>Monthly Entries
+                    </a>
+                    <a href="#utilities/item-catalogue" data-utilities-view-link="item-catalogue" onclick="switchUtilitiesPage('item-catalogue')">
+                        <span class="utilities-nav-icon" aria-hidden="true">☷</span>Item Catalogue
+                    </a>
+                    <a href="#workspaces" class="utilities-workspaces-link" onclick="switchPage('workspacePage'); return false;">
+                        <span class="utilities-nav-icon" aria-hidden="true">⌂</span>Workspaces
+                    </a>
+                </nav>
+                <div class="utilities-sidebar-footer">CARE International</div>
+            </aside>
+            <main class="utilities-content" id="utilitiesContent" tabindex="-1">
+                <div class="filters consumables-filters">
+                    <div class="search-box">
+                        <input id="consumablesSearch" type="search" placeholder="Search consumables..." aria-label="Search consumables" oninput="renderConsumableViews()">
+                    </div>
+                    <select id="consumablesCategoryFilter" aria-label="Filter by category" onchange="renderConsumableViews()">
+                        <option value="">All categories</option>
+                        <option value="Stationery">Stationery</option>
+                        <option value="Detergents / Toiletries">Detergents / Toiletries</option>
+                        <option value="Kitchen Utilities">Kitchen Utilities</option>
+                    </select>
+                    <select id="consumablesMonth" class="consumables-period-filter" aria-label="Month for stock entries" onchange="renderConsumableViews()">
+                        <option value="1">January</option><option value="2">February</option>
+                        <option value="3">March</option><option value="4">April</option>
+                        <option value="5">May</option><option value="6">June</option>
+                        <option value="7">July</option><option value="8">August</option>
+                        <option value="9">September</option><option value="10">October</option>
+                        <option value="11">November</option><option value="12">December</option>
+                    </select>
+                    <input id="consumablesYear" class="consumables-period-filter" type="number" min="2000" max="2100" aria-label="Stock year" onchange="loadConsumableStock()">
                 </div>
-                <div class="header-actions" id="utilitiesHeaderActions"></div>
-            </div>
-            <div id="utilitiesMessage" class="alert" style="display: none;"></div>
-            <div class="filters consumables-filters">
-                <div class="search-box">
-                    <input id="consumablesSearch" type="search" placeholder="Search consumables..." oninput="renderConsumablesTable()">
-                </div>
-                <select id="consumablesCategoryFilter" onchange="renderConsumablesTable()">
-                    <option value="">All categories</option>
-                    <option value="Stationery">Stationery</option>
-                    <option value="Detergents / Toiletries">Detergents / Toiletries</option>
-                    <option value="Kitchen Utilities">Kitchen Utilities</option>
-                </select>
-                <select id="consumablesMonth" aria-label="Month for stock entries" onchange="renderConsumablesTable()">
-                    <option value="1">January</option><option value="2">February</option>
-                    <option value="3">March</option><option value="4">April</option>
-                    <option value="5">May</option><option value="6">June</option>
-                    <option value="7">July</option><option value="8">August</option>
-                    <option value="9">September</option><option value="10">October</option>
-                    <option value="11">November</option><option value="12">December</option>
-                </select>
-                <input id="consumablesYear" type="number" min="2000" max="2100" value="2026" aria-label="Stock year" onchange="loadConsumableStock()">
-            </div>
-            <div class="grid grid-3 consumables-summary">
-                <div class="stat-card total"><div class="stat-icon">📦</div><div class="stat-content"><h3>Items</h3><p class="stat-value" id="consumableItemCount">0</p></div></div>
-                <div class="stat-card available"><div class="stat-icon">↓</div><div class="stat-content"><h3>Received this month</h3><p class="stat-value" id="consumableReceivedTotal">0</p></div></div>
-                <div class="stat-card assigned"><div class="stat-icon">↑</div><div class="stat-content"><h3>Issued this month</h3><p class="stat-value" id="consumableIssuedTotal">0</p></div></div>
-            </div>
-            <div class="table-responsive" id="consumablesTable" role="region" aria-label="Consumable stock levels" tabindex="-1">
-                <table>
-                    <thead><tr>
-                        <th>Item description</th><th>Item code</th><th>Category</th><th>Unit</th>
-                        <th>Opening balance</th><th>Received</th><th>Issued</th><th>Closing balance</th>
-                        <th>Record movement</th><th>Actions</th>
-                    </tr></thead>
-                    <tbody id="consumablesTableBody"><tr><td colspan="10" class="text-center">Loading stock...</td></tr></tbody>
-                </table>
-            </div>
+                <div id="utilitiesMessage" class="alert" style="display: none;"></div>
+
+                <section class="utilities-view" data-utilities-view="stock-levels" aria-labelledby="utilitiesStockHeading">
+                    <div class="page-header">
+                        <div>
+                            <h1 id="utilitiesStockHeading">Stock Levels</h1>
+                            <p>See current balances and the quantities received or issued this month.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-3 consumables-summary">
+                        <div class="stat-card total"><div class="stat-icon">📦</div><div class="stat-content"><h3>Items</h3><p class="stat-value" id="consumableItemCount">0</p></div></div>
+                        <div class="stat-card available"><div class="stat-icon">↓</div><div class="stat-content"><h3>Received this month</h3><p class="stat-value" id="consumableReceivedTotal">0</p></div></div>
+                        <div class="stat-card assigned"><div class="stat-icon">↑</div><div class="stat-content"><h3>Issued this month</h3><p class="stat-value" id="consumableIssuedTotal">0</p></div></div>
+                    </div>
+                    <div class="table-responsive" id="consumablesTable" role="region" aria-label="Consumable stock levels" tabindex="-1">
+                        <table>
+                            <thead><tr>
+                                <th>Item description</th><th>Item code</th><th>Category</th><th>Unit</th>
+                                <th>Opening balance</th><th>Received</th><th>Issued</th><th>Closing balance</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="consumablesTableBody"><tr><td colspan="9" class="text-center">Loading stock...</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="utilities-view" data-utilities-view="monthly-entries" aria-labelledby="utilitiesEntriesHeading" hidden>
+                    <div class="page-header">
+                        <div>
+                            <h1 id="utilitiesEntriesHeading">Monthly Entries</h1>
+                            <p>Record stock received and issued for the selected month.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-2 consumables-entry-summary">
+                        <div class="stat-card available"><div class="stat-icon">↓</div><div class="stat-content"><h3>Received</h3><p class="stat-value" id="monthlyReceivedTotal">0</p></div></div>
+                        <div class="stat-card assigned"><div class="stat-icon">↑</div><div class="stat-content"><h3>Issued</h3><p class="stat-value" id="monthlyIssuedTotal">0</p></div></div>
+                    </div>
+                    <div class="table-responsive" role="region" aria-label="Monthly consumable entries" tabindex="-1">
+                        <table>
+                            <thead><tr>
+                                <th>Item description</th><th>Item code</th><th>Category</th><th>Opening balance</th>
+                                <th>Received</th><th>Issued</th><th>Closing balance</th><th>Record movement</th>
+                            </tr></thead>
+                            <tbody id="consumableEntriesTableBody"><tr><td colspan="8" class="text-center">Loading entries...</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="utilities-view" data-utilities-view="item-catalogue" aria-labelledby="utilitiesCatalogueHeading" hidden>
+                    <div class="page-header">
+                        <div>
+                            <h1 id="utilitiesCatalogueHeading">Item Catalogue</h1>
+                            <p>Manage the consumable items tracked in the stock workspace.</p>
+                        </div>
+                        <div class="header-actions" id="utilitiesHeaderActions"></div>
+                    </div>
+                    <div class="table-responsive" role="region" aria-label="Consumable item catalogue" tabindex="-1">
+                        <table>
+                            <thead><tr>
+                                <th>Item description</th><th>Item code</th><th>Category</th><th>Unit</th>
+                                <th>Opening balance</th><th>Condition</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="consumablesCatalogueTableBody"><tr><td colspan="7" class="text-center">Loading catalogue...</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
         </div>
     </div>
 
@@ -1388,6 +1450,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261112-utilities-nav-accessible"></script>
+    <script src="script.js?v=20261113-utilities-pages"></script>
 </body>
 </html>

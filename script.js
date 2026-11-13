@@ -307,6 +307,7 @@ function switchPage(pageId, options = {}) {
         renderWorkspaceAccount();
     } else if (pageId === 'utilitiesPage') {
         renderUtilitiesHeader();
+        restoreUtilitiesViewFromHash();
         renderConsumablesHeaderActions();
         loadConsumableStock();
     } else if (pageId === 'dashboardPage') {
@@ -352,6 +353,38 @@ function renderWorkspaceAccount() {
     if (userLabel) userLabel.textContent = user ? user.email || '' : '';
     if (logoutButton) logoutButton.style.display = '';
 }
+
+function switchUtilitiesPage(view) {
+    const views = ['stock-levels', 'monthly-entries', 'item-catalogue'];
+    if (!views.includes(view)) return;
+
+    document.querySelectorAll('[data-utilities-view]').forEach(section => {
+        section.hidden = section.dataset.utilitiesView !== view;
+    });
+    document.querySelectorAll('[data-utilities-view-link]').forEach(link => {
+        if (link.dataset.utilitiesViewLink === view) {
+            link.setAttribute('aria-current', 'page');
+        } else {
+            link.removeAttribute('aria-current');
+        }
+    });
+
+    document.querySelectorAll('.consumables-period-filter').forEach(filter => {
+        filter.hidden = view === 'item-catalogue';
+    });
+}
+
+function restoreUtilitiesViewFromHash() {
+    const match = window.location.hash.match(/^#utilities\/(stock-levels|monthly-entries|item-catalogue)$/);
+    switchUtilitiesPage(match ? match[1] : 'stock-levels');
+}
+
+window.addEventListener('hashchange', () => {
+    const utilitiesPage = document.getElementById('utilitiesPage');
+    if (utilitiesPage && utilitiesPage.style.display !== 'none') {
+        restoreUtilitiesViewFromHash();
+    }
+});
 
 function openWorkspace(workspaceId) {
     if (workspaceId === 'utilities') {
@@ -414,18 +447,11 @@ function renderUtilitiesHeader() {
         userRole === 'admin' ? 'ADMIN' : userRole === 'viewer' ? 'VIEWER' : 'USER';
     let headerHTML = '<div class="header-container">';
     headerHTML += '<div class="header-logo"><h1>Utilities</h1><span class="role-badge">' + roleDisplay + '</span></div>';
-    headerHTML += '<nav class="header-nav" id="utilitiesNavigation" aria-label="Utilities navigation">';
-    headerHTML += '<a href="#consumablesTable" aria-current="page" onclick="closeMobileMenu(this)">Stock Levels</a>';
-    headerHTML += '<a href="#consumablesMonth" onclick="closeMobileMenu(this)">Monthly Entries</a>';
-    if (isAdmin()) {
-        headerHTML += '<button type="button" aria-haspopup="dialog" aria-controls="consumableModal" onclick="closeMobileMenu(this); openConsumableModal()">Item Catalogue</button>';
-    }
-    headerHTML += '<a href="#workspacePage" onclick="closeMobileMenu(this); switchPage(\'workspacePage\')">Workspaces</a>';
-    headerHTML += '</nav><div class="header-right">';
+    headerHTML += '<div class="header-right">';
     headerHTML += '<div class="user-info"><span>' + escapeConsumableText(user?.email || '') + '</span>';
     headerHTML += '<span class="role-label">' + roleDisplay + '</span></div>';
     headerHTML += '<button class="btn btn-secondary btn-small" onclick="logout()">Logout</button></div>';
-    headerHTML += '<button type="button" class="mobile-menu-btn" onclick="toggleMobileMenu(this)" aria-label="Toggle Utilities navigation" aria-controls="utilitiesNavigation" aria-expanded="false">Menu</button></div>';
+    headerHTML += '</div>';
     header.innerHTML = headerHTML;
 }
 
@@ -483,6 +509,8 @@ function escapeConsumableText(value) {
 
 async function loadConsumableStock() {
     const tbody = document.getElementById('consumablesTableBody');
+    const entriesBody = document.getElementById('consumableEntriesTableBody');
+    const catalogueBody = document.getElementById('consumablesCatalogueTableBody');
     const yearInput = document.getElementById('consumablesYear');
     const monthInput = document.getElementById('consumablesMonth');
     if (!tbody || !yearInput || !monthInput) return;
@@ -499,14 +527,18 @@ async function loadConsumableStock() {
         return;
     }
 
-    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading stock...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center">Loading stock...</td></tr>';
+    if (entriesBody) entriesBody.innerHTML = '<tr><td colspan="8" class="text-center">Loading entries...</td></tr>';
+    if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="7" class="text-center">Loading catalogue...</td></tr>';
     try {
         const items = await apiCall('/consumables?year=' + encodeURIComponent(year), 'GET');
         if (!items) throw new Error('Unable to load consumable stock');
         allConsumables = items;
-        renderConsumablesTable();
+        renderConsumableViews();
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">Unable to load consumable stock</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">Unable to load consumable stock</td></tr>';
+        if (entriesBody) entriesBody.innerHTML = '<tr><td colspan="8" class="text-center no-data">Unable to load monthly entries</td></tr>';
+        if (catalogueBody) catalogueBody.innerHTML = '<tr><td colspan="7" class="text-center no-data">Unable to load catalogue</td></tr>';
         showMessage('utilitiesMessage', 'Error loading stock: ' + error.message, 'error', 0);
     }
 }
@@ -518,13 +550,26 @@ function getConsumablesPeriod() {
     };
 }
 
+function getFilteredConsumables() {
+    const search = document.getElementById('consumablesSearch').value.trim().toLowerCase();
+    const category = document.getElementById('consumablesCategoryFilter').value;
+    return allConsumables.filter(item => {
+        const text = [item.itemName, item.itemCode, item.category, item.unit].join(' ').toLowerCase();
+        return (!category || item.category === category) && text.includes(search);
+    });
+}
+
+function renderConsumableViews() {
+    renderConsumablesTable();
+    renderMonthlyEntriesTable();
+    renderConsumablesCatalogue();
+}
+
 function renderConsumablesTable() {
     const tbody = document.getElementById('consumablesTableBody');
     if (!tbody) return;
     const { year, month } = getConsumablesPeriod();
     const selectedPeriod = year + '-' + String(month).padStart(2, '0');
-    const search = document.getElementById('consumablesSearch').value.trim().toLowerCase();
-    const category = document.getElementById('consumablesCategoryFilter').value;
     let receivedTotal = 0;
     let issuedTotal = 0;
 
@@ -537,12 +582,61 @@ function renderConsumablesTable() {
     document.getElementById('consumableReceivedTotal').textContent = receivedTotal.toLocaleString();
     document.getElementById('consumableIssuedTotal').textContent = issuedTotal.toLocaleString();
 
-    const items = allConsumables.filter(item => {
-        const text = [item.itemName, item.itemCode, item.category, item.unit].join(' ').toLowerCase();
-        return (!category || item.category === category) && text.includes(search);
-    });
+    const items = getFilteredConsumables();
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center no-data">No consumables match your filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center no-data">No consumables match your filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const id = escapeConsumableText(item._id);
+        const movements = item.movements || {};
+        const current = movements[selectedPeriod] || {};
+        const received = Number(current.received) || 0;
+        const issued = Number(current.issued) || 0;
+        const yearToDate = Object.entries(movements)
+            .filter(([period]) => period <= selectedPeriod)
+            .reduce((totals, [, movement]) => ({
+                received: totals.received + (Number(movement.received) || 0),
+                issued: totals.issued + (Number(movement.issued) || 0),
+            }), { received: 0, issued: 0 });
+        const closingBalance = (Number(item.openingBalance) || 0) + yearToDate.received - yearToDate.issued;
+        const actions = isAdmin()
+            ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
+            : '-';
+        return '<tr>' +
+            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td>' + escapeConsumableText(item.category) + '</td>' +
+            '<td>' + escapeConsumableText(item.unit || '-') + '</td>' +
+            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td>' + received.toLocaleString() + '</td>' +
+            '<td>' + issued.toLocaleString() + '</td>' +
+            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td><div class="action-buttons">' + actions + '</div></td>' +
+            '</tr>';
+    }).join('');
+}
+
+function renderMonthlyEntriesTable() {
+    const tbody = document.getElementById('consumableEntriesTableBody');
+    if (!tbody) return;
+    const { year, month } = getConsumablesPeriod();
+    const selectedPeriod = year + '-' + String(month).padStart(2, '0');
+    let receivedTotal = 0;
+    let issuedTotal = 0;
+
+    allConsumables.forEach(item => {
+        const movement = (item.movements || {})[selectedPeriod] || {};
+        receivedTotal += Number(movement.received) || 0;
+        issuedTotal += Number(movement.issued) || 0;
+    });
+    document.getElementById('monthlyReceivedTotal').textContent = receivedTotal.toLocaleString();
+    document.getElementById('monthlyIssuedTotal').textContent = issuedTotal.toLocaleString();
+
+    const items = getFilteredConsumables();
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center no-data">No consumables match your filters</td></tr>';
         return;
     }
 
@@ -565,6 +659,30 @@ function renderConsumablesTable() {
                 '<input id="consumableIssued-' + id + '" type="number" min="0" step="1" value="0" aria-label="Additional units issued">' +
                 '<button class="btn btn-small btn-primary" onclick="recordConsumableMovement(\'' + id + '\')">Save</button></div>'
             : 'View only';
+        return '<tr>' +
+            '<td>' + escapeConsumableText(item.itemName) + '</td>' +
+            '<td>' + escapeConsumableText(item.itemCode || '-') + '</td>' +
+            '<td>' + escapeConsumableText(item.category) + '</td>' +
+            '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td>' + received.toLocaleString() + '</td>' +
+            '<td>' + issued.toLocaleString() + '</td>' +
+            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
+            '<td>' + entryFields + '</td>' +
+            '</tr>';
+    }).join('');
+}
+
+function renderConsumablesCatalogue() {
+    const tbody = document.getElementById('consumablesCatalogueTableBody');
+    if (!tbody) return;
+    const items = getFilteredConsumables();
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center no-data">No consumables match your filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const id = escapeConsumableText(item._id);
         const actions = isAdmin()
             ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
             : '-';
@@ -574,10 +692,7 @@ function renderConsumablesTable() {
             '<td>' + escapeConsumableText(item.category) + '</td>' +
             '<td>' + escapeConsumableText(item.unit || '-') + '</td>' +
             '<td>' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
-            '<td>' + received.toLocaleString() + '</td>' +
-            '<td>' + issued.toLocaleString() + '</td>' +
-            '<td><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
-            '<td>' + entryFields + '</td>' +
+            '<td>' + escapeConsumableText(item.condition || '-') + '</td>' +
             '<td><div class="action-buttons">' + actions + '</div></td>' +
             '</tr>';
     }).join('');
