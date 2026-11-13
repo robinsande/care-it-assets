@@ -565,6 +565,28 @@ function renderConsumableViews() {
     renderConsumablesCatalogue();
 }
 
+function getConsumablePeriodBalances(item, selectedPeriod) {
+    const movements = item.movements || {};
+    const previousTotals = Object.entries(movements)
+        .filter(([period]) => period < selectedPeriod)
+        .reduce((totals, [, movement]) => ({
+            received: totals.received + (Number(movement.received) || 0),
+            issued: totals.issued + (Number(movement.issued) || 0),
+        }), { received: 0, issued: 0 });
+    const currentMovement = movements[selectedPeriod] || {};
+    const openingBalance = (Number(item.openingBalance) || 0) +
+        previousTotals.received - previousTotals.issued;
+    const received = Number(currentMovement.received) || 0;
+    const issued = Number(currentMovement.issued) || 0;
+
+    return {
+        openingBalance,
+        received,
+        issued,
+        closingBalance: openingBalance + received - issued,
+    };
+}
+
 function renderConsumablesTable() {
     const tbody = document.getElementById('consumablesTableBody');
     if (!tbody) return;
@@ -590,17 +612,8 @@ function renderConsumablesTable() {
 
     tbody.innerHTML = items.map(item => {
         const id = escapeConsumableText(item._id);
-        const movements = item.movements || {};
-        const current = movements[selectedPeriod] || {};
-        const received = Number(current.received) || 0;
-        const issued = Number(current.issued) || 0;
-        const yearToDate = Object.entries(movements)
-            .filter(([period]) => period <= selectedPeriod)
-            .reduce((totals, [, movement]) => ({
-                received: totals.received + (Number(movement.received) || 0),
-                issued: totals.issued + (Number(movement.issued) || 0),
-            }), { received: 0, issued: 0 });
-        const closingBalance = (Number(item.openingBalance) || 0) + yearToDate.received - yearToDate.issued;
+        const { openingBalance, received, issued, closingBalance } =
+            getConsumablePeriodBalances(item, selectedPeriod);
         const actions = isAdmin()
             ? '<button class="btn btn-small btn-secondary" onclick="openConsumableModal(\'' + id + '\')">Edit</button>'
             : '-';
@@ -609,7 +622,7 @@ function renderConsumablesTable() {
             '<td data-label="Item code">' + escapeConsumableText(item.itemCode || '-') + '</td>' +
             '<td data-label="Category">' + escapeConsumableText(item.category) + '</td>' +
             '<td data-label="Unit">' + escapeConsumableText(item.unit || '-') + '</td>' +
-            '<td data-label="Opening balance">' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td data-label="Opening balance">' + openingBalance.toLocaleString() + '</td>' +
             '<td data-label="Received">' + received.toLocaleString() + '</td>' +
             '<td data-label="Issued">' + issued.toLocaleString() + '</td>' +
             '<td data-label="Closing balance"><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
@@ -642,17 +655,8 @@ function renderMonthlyEntriesTable() {
 
     tbody.innerHTML = items.map(item => {
         const id = escapeConsumableText(item._id);
-        const movements = item.movements || {};
-        const current = movements[selectedPeriod] || {};
-        const received = Number(current.received) || 0;
-        const issued = Number(current.issued) || 0;
-        const yearToDate = Object.entries(movements)
-            .filter(([period]) => period <= selectedPeriod)
-            .reduce((totals, [, movement]) => ({
-                received: totals.received + (Number(movement.received) || 0),
-                issued: totals.issued + (Number(movement.issued) || 0),
-            }), { received: 0, issued: 0 });
-        const closingBalance = (Number(item.openingBalance) || 0) + yearToDate.received - yearToDate.issued;
+        const { openingBalance, received, issued, closingBalance } =
+            getConsumablePeriodBalances(item, selectedPeriod);
         const entryFields = canAddRecords()
             ? '<div class="consumable-entry-fields">' +
                 '<input id="consumableReceived-' + id + '" type="number" min="0" step="1" value="0" aria-label="Additional units received">' +
@@ -663,7 +667,7 @@ function renderMonthlyEntriesTable() {
             '<td data-label="Item description">' + escapeConsumableText(item.itemName) + '</td>' +
             '<td data-label="Item code">' + escapeConsumableText(item.itemCode || '-') + '</td>' +
             '<td data-label="Category">' + escapeConsumableText(item.category) + '</td>' +
-            '<td data-label="Opening balance">' + (Number(item.openingBalance) || 0).toLocaleString() + '</td>' +
+            '<td data-label="Opening balance">' + openingBalance.toLocaleString() + '</td>' +
             '<td data-label="Received">' + received.toLocaleString() + '</td>' +
             '<td data-label="Issued">' + issued.toLocaleString() + '</td>' +
             '<td data-label="Closing balance"><strong>' + closingBalance.toLocaleString() + '</strong></td>' +
