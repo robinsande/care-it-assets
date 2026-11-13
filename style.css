@@ -1585,39 +1585,40 @@ body.dark-mode .admin-summary-card:hover .admin-summary-icon {
 
 #utilitiesPage .table-responsive table {
     width: 100%;
+    max-width: 980px;
     min-width: 0;
     table-layout: fixed;
 }
 
-#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(1) { width: 24%; }
+#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(1) { width: 30%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(2) { width: 8%; }
-#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(3) { width: 14%; }
+#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(3) { width: 12%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(4) { width: 7%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(5) { width: 7%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(6) { width: 7%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(7) { width: 7%; }
 #utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(8) { width: 8%; }
-#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(9) { width: 18%; }
+#utilitiesPage [data-utilities-view="stock-levels"] .table-responsive th:nth-child(9) { width: 14%; }
 
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(1) { width: 20%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(1) { width: 22%; }
 #utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(2) { width: 8%; }
 #utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(3) { width: 12%; }
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(4) { width: 8%; }
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(5) { width: 7%; }
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(6) { width: 7%; }
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(7) { width: 8%; }
-#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(8) { width: 30%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(4) { width: 10%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(5) { width: 8%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(6) { width: 8%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(7) { width: 10%; }
+#utilitiesPage [data-utilities-view="monthly-entries"] .table-responsive th:nth-child(8) { width: 22%; }
 
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(1) { width: 38%; }
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(2) { width: 11%; }
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(3) { width: 18%; }
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(4) { width: 9%; }
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(5) { width: 12%; }
-#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(6) { width: 12%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(1) { width: 44%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(2) { width: 10%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(3) { width: 17%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(4) { width: 8%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(5) { width: 10%; }
+#utilitiesPage [data-utilities-view="item-catalogue"] .table-responsive th:nth-child(6) { width: 11%; }
 
 #utilitiesPage .table-responsive th,
 #utilitiesPage .table-responsive td {
-    padding: 8px 5px;
+    padding: 6px 4px;
     overflow-wrap: anywhere;
 }
 
@@ -1664,7 +1665,9 @@ body.dark-mode .admin-summary-card:hover .admin-summary-icon {
 }
 
 #utilitiesPage .header {
-    position: relative;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .utilities-shell {
@@ -1677,7 +1680,7 @@ body.dark-mode .admin-summary-card:hover .admin-summary-icon {
 
 .utilities-sidebar {
     position: sticky;
-    top: 0;
+    top: 72px;
     align-self: start;
     display: flex;
     flex-direction: column;
@@ -1786,6 +1789,14 @@ body.dark-mode .admin-summary-card:hover .admin-summary-icon {
 
 .utilities-content .consumables-period-filter[hidden] {
     display: none;
+}
+
+#utilitiesPage [data-utilities-view="monthly-entries"] .consumable-entry-fields {
+    max-width: 210px;
+}
+
+.utilities-content .consumable-entry-fields input {
+    max-width: 80px;
 }
 
 .utilities-view {
